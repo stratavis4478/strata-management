@@ -30,15 +30,14 @@
     let oauthToken;
     
     function gapiLoaded() {
-      gapi.load('client:picker', initializePicker);
-    }
-
-    function initializePicker() {
-      gapi.client.init({
-        apiKey: GOOGLE_CONFIG.apiKey,
-        discoveryDocs: GOOGLE_CONFIG.discoveryDocs,
-      }).then(() => {
+      gapi.load('client:picker', async () => {
+        await gapi.client.init({
+          apiKey: GOOGLE_CONFIG.apiKey,
+          discoveryDocs: GOOGLE_CONFIG.discoveryDocs,
+        });
+        await gapi.client.load('drive', 'v3');
         pickerApiLoaded = true;
+        console.log('Google Drive API loaded');
       });
     }
   </script>
@@ -553,6 +552,41 @@
       color: var(--text-primary);
     }
 
+    .upload-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .upload-modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 16px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .upload-modal h3 {
+      margin-bottom: 20px;
+      color: var(--primary);
+    }
+
+    .upload-modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+
     .total-row {
       font-weight: 700;
       background: linear-gradient(135deg, #F0F4F8 0%, #E2E8F0 100%);
@@ -839,6 +873,14 @@ const GoogleDriveManager = {
 
   // Find or create folder
   async findOrCreateFolder(folderName, parentFolderId = null) {
+    // Wait for API to be ready
+    if (!gapi.client.drive) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!gapi.client.drive) {
+        throw new Error('Google Drive API not loaded. Please refresh the page.');
+      }
+    }
+
     let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
     if (parentFolderId) {
       query += ` and '${parentFolderId}' in parents`;
@@ -2387,6 +2429,9 @@ const GoogleDriveManager = {
       const [permanentFiles, setPermanentFiles] = useState([]);
       const [storageQuota, setStorageQuota] = useState(null);
       const [sortBy, setSortBy] = useState('date');
+      const [showUploadModal, setShowUploadModal] = useState(false);
+      const [selectedFile, setSelectedFile] = useState(null);
+      const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
 
       // Check authentication status
       useEffect(() => {
@@ -2444,30 +2489,38 @@ const GoogleDriveManager = {
         setDriveFiles([]);
       };
 
-      const handleFileUpload = async (event) => {
+      const handleFileSelect = (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
-        const docName = prompt('Enter document name:', file.name.replace(/\.[^/.]+$/, ''));
-        if (!docName) return;
+        setSelectedFile(file);
+        setUploadForm({
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          date: new Date().toISOString().split('T')[0],
+          isPermanent: false
+        });
+        setShowUploadModal(true);
+        event.target.value = '';
+      };
 
-        const docDate = prompt('Enter document date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-        if (!docDate) return;
-
-        const isPermanent = confirm('Mark as Permanent Record?\n(Will be visible in all years)');
+      const handleUploadSubmit = async () => {
+        if (!uploadForm.name || !uploadForm.date) {
+          alert('Please fill in all required fields');
+          return;
+        }
 
         setIsUploading(true);
         try {
-          const result = await GoogleDriveManager.uploadFile(file, selectedYear, {
-            name: docName,
-            date: docDate
+          const result = await GoogleDriveManager.uploadFile(selectedFile, selectedYear, {
+            name: uploadForm.name,
+            date: uploadForm.date
           });
 
-          if (isPermanent) {
+          if (uploadForm.isPermanent) {
             const permDoc = {
               id: result.id,
-              name: docName,
-              date: docDate,
+              name: uploadForm.name,
+              date: uploadForm.date,
               year: selectedYear,
               driveFileId: result.id,
               webViewLink: result.webViewLink
@@ -2482,7 +2535,9 @@ const GoogleDriveManager = {
 
           alert('✅ File uploaded successfully!');
           await loadFiles();
-          event.target.value = '';
+          setShowUploadModal(false);
+          setSelectedFile(null);
+          setUploadForm({ name: '', date: '', isPermanent: false });
         } catch (error) {
           console.error('Upload error:', error);
           alert('❌ Upload failed: ' + error.message);
@@ -2550,6 +2605,58 @@ const GoogleDriveManager = {
 
       return (
         <>
+          {showUploadModal && (
+            <div className="upload-modal" onClick={() => setShowUploadModal(false)}>
+              <div className="upload-modal-content" onClick={(e) => e.stopPropagation()}>
+                <h3>Upload Document</h3>
+                <div className="form-group">
+                  <label>Document Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={uploadForm.name}
+                    onChange={(e) => setUploadForm({...uploadForm, name: e.target.value})}
+                    placeholder="e.g., AGM Minutes 2025"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={uploadForm.date}
+                    onChange={(e) => setUploadForm({...uploadForm, date: e.target.value})}
+                  />
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', fontStyle: 'italic' }}>
+                    If day is unknown, use the 1st of the month
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={uploadForm.isPermanent}
+                      onChange={(e) => setUploadForm({...uploadForm, isPermanent: e.target.checked})}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    <span>⭐ Keep as Permanent Record</span>
+                  </label>
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', marginLeft: '26px', fontStyle: 'italic' }}>
+                    Document will be visible in all years
+                  </small>
+                </div>
+                <div className="upload-modal-buttons">
+                  <button className="modal-button cancel" onClick={() => setShowUploadModal(false)}>
+                    Cancel
+                  </button>
+                  <button className="modal-button save" onClick={handleUploadSubmit} disabled={isUploading}>
+                    {isUploading ? '⏳ Uploading...' : '💾 Upload'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="card">
             <div className="card-header">
               <h2 className="card-title">Upload Document for {selectedYear}</h2>
@@ -2584,7 +2691,7 @@ const GoogleDriveManager = {
                 </p>
                 <input
                   type="file"
-                  onChange={handleFileUpload}
+                  onChange={handleFileSelect}
                   style={{ display: 'none' }}
                   id="file-upload"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
