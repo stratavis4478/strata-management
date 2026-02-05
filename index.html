@@ -2533,10 +2533,51 @@ const GoogleDriveManager = {
       const [driveFiles, setDriveFiles] = useState([]);
       const [permanentFiles, setPermanentFiles] = useState([]);
       const [storageQuota, setStorageQuota] = useState(null);
-      const [sortBy, setSortBy] = useState('date');
       const [showUploadModal, setShowUploadModal] = useState(false);
       const [selectedFile, setSelectedFile] = useState(null);
       const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
+      const [docsSortBy, setDocsSortBy] = useState('date'); // date, name, size
+      const [permSortBy, setPermSortBy] = useState('year'); // year, name, date, size
+
+      const formatBytes = (bytes) => {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+      };
+
+      const sortDocuments = (docs, sortBy) => {
+        const sorted = [...docs];
+        if (sortBy === 'date') {
+          sorted.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime));
+        } else if (sortBy === 'name') {
+          sorted.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortBy === 'size') {
+          sorted.sort((a, b) => (b.size || 0) - (a.size || 0));
+        }
+        return sorted;
+      };
+
+      const sortPermanent = (docs, sortBy) => {
+        const sorted = [...docs];
+        if (sortBy === 'year') {
+          sorted.sort((a, b) => b.year - a.year);
+        } else if (sortBy === 'name') {
+          sorted.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortBy === 'date') {
+          sorted.sort((a, b) => new Date(b.date) - new Date(a.date));
+        } else if (sortBy === 'size') {
+          sorted.sort((a, b) => (b.size || 0) - (a.size || 0));
+        }
+        return sorted;
+      };
+
+      const getYearColor = (year) => {
+        const colors = ['#ECFDF5', '#FEF3C7', '#FCE7F3', '#DBEAFE', '#FED7AA'];
+        const colorIndex = Math.floor((year - 2015) / 2) % colors.length;
+        return colors[colorIndex];
+      };
 
       // Check authentication status
       useEffect(() => {
@@ -2628,7 +2669,8 @@ const GoogleDriveManager = {
               date: uploadForm.date,
               year: selectedYear,
               driveFileId: result.id,
-              webViewLink: result.webViewLink
+              webViewLink: result.webViewLink,
+              size: result.size
             };
 
             const permStr = localStorage.getItem('strata-permanent-documents');
@@ -2663,18 +2705,19 @@ const GoogleDriveManager = {
             // Continue anyway to clean up local records
           }
 
-          // Remove from permanent records in localStorage
-          if (isPerm) {
-            const permStr = localStorage.getItem('strata-permanent-documents');
-            const permDocs = permStr ? JSON.parse(permStr) : [];
-            const updated = permDocs.filter(doc => doc.driveFileId !== fileId);
+          // ALWAYS remove from permanent records if it exists there
+          const permStr = localStorage.getItem('strata-permanent-documents');
+          const permDocs = permStr ? JSON.parse(permStr) : [];
+          const updated = permDocs.filter(doc => doc.driveFileId !== fileId);
+          if (updated.length !== permDocs.length) {
+            // File was in permanent records, update it
             localStorage.setItem('strata-permanent-documents', JSON.stringify(updated));
             setPermanentFiles(updated);
           }
 
           // Reload files list
           await loadFiles();
-          alert('✅ Document deleted');
+          alert('✅ Document deleted from all locations');
         } catch (error) {
           console.error('Delete error:', error);
           alert('❌ Delete failed: ' + error.message);
@@ -2846,6 +2889,30 @@ const GoogleDriveManager = {
           <div className="card">
             <div className="card-header">
               <h2 className="card-title">Documents for {selectedYear}</h2>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Sort by:</span>
+                <button 
+                  className={docsSortBy === 'date' ? 'add-button' : 'export-button pdf'}
+                  onClick={() => setDocsSortBy('date')}
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Date
+                </button>
+                <button 
+                  className={docsSortBy === 'name' ? 'add-button' : 'export-button pdf'}
+                  onClick={() => setDocsSortBy('name')}
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Name
+                </button>
+                <button 
+                  className={docsSortBy === 'size' ? 'add-button' : 'export-button pdf'}
+                  onClick={() => setDocsSortBy('size')}
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Size
+                </button>
+              </div>
             </div>
             {driveFiles.length === 0 ? (
               <div className="empty-state">
@@ -2858,13 +2925,13 @@ const GoogleDriveManager = {
                   <thead>
                     <tr>
                       <th>Document Name</th>
-                      <th>Size</th>
-                      <th>Uploaded</th>
-                      <th>Actions</th>
+                      <th style={{ width: '80px' }}>Size</th>
+                      <th style={{ width: '100px' }}>Date</th>
+                      <th style={{ width: '200px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {driveFiles.map(file => (
+                    {sortDocuments(driveFiles, docsSortBy).map(file => (
                       <tr key={file.id}>
                         <td><strong>{file.name}</strong></td>
                         <td>{formatBytes(file.size)}</td>
@@ -2882,6 +2949,7 @@ const GoogleDriveManager = {
                             </a>
                             <a
                               href={file.webContentLink}
+                              download
                               target="_blank"
                               className="notes-button"
                               style={{ borderColor: 'var(--success)', color: 'var(--success)', textDecoration: 'none', display: 'inline-block' }}
@@ -2908,6 +2976,37 @@ const GoogleDriveManager = {
             <div className="card">
               <div className="card-header">
                 <h2 className="card-title">📚 Permanent Records</h2>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Sort by:</span>
+                  <button 
+                    className={permSortBy === 'year' ? 'add-button' : 'export-button pdf'}
+                    onClick={() => setPermSortBy('year')}
+                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  >
+                    Year
+                  </button>
+                  <button 
+                    className={permSortBy === 'name' ? 'add-button' : 'export-button pdf'}
+                    onClick={() => setPermSortBy('name')}
+                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  >
+                    Name
+                  </button>
+                  <button 
+                    className={permSortBy === 'date' ? 'add-button' : 'export-button pdf'}
+                    onClick={() => setPermSortBy('date')}
+                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  >
+                    Date
+                  </button>
+                  <button 
+                    className={permSortBy === 'size' ? 'add-button' : 'export-button pdf'}
+                    onClick={() => setPermSortBy('size')}
+                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  >
+                    Size
+                  </button>
+                </div>
               </div>
               <div style={{ padding: '15px', background: '#FFF7ED', borderRadius: '8px', margin: '20px', border: '2px solid #FDBA74' }}>
                 <strong style={{ color: '#C2410C' }}>📌 Permanent Archive</strong>
@@ -2920,17 +3019,19 @@ const GoogleDriveManager = {
                   <thead>
                     <tr>
                       <th>Document Name</th>
-                      <th>Year</th>
-                      <th>Date</th>
-                      <th>Actions</th>
+                      <th style={{ width: '80px' }}>Size</th>
+                      <th style={{ width: '100px' }}>Date</th>
+                      <th style={{ width: '60px' }}>Year</th>
+                      <th style={{ width: '250px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {permanentFiles.map(doc => (
-                      <tr key={doc.id}>
+                    {sortPermanent(permanentFiles, permSortBy).map(doc => (
+                      <tr key={doc.id} style={{ background: getYearColor(doc.year) }}>
                         <td><strong>{doc.name}</strong></td>
-                        <td><span className="badge success">{doc.year}</span></td>
+                        <td>{doc.size ? formatBytes(doc.size) : '—'}</td>
                         <td>{new Date(doc.date).toLocaleDateString()}</td>
+                        <td><span className="badge success">{doc.year}</span></td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <a
@@ -2943,8 +3044,7 @@ const GoogleDriveManager = {
                               👁 View
                             </a>
                             <a
-                              href={doc.webContentLink || doc.webViewLink}
-                              download
+                              href={`https://drive.google.com/uc?export=download&id=${doc.driveFileId}`}
                               target="_blank"
                               className="notes-button"
                               style={{ borderColor: 'var(--success)', color: 'var(--success)', textDecoration: 'none', display: 'inline-block' }}
