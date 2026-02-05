@@ -908,6 +908,11 @@ const GoogleDriveManager = {
           }
           oauthToken = response.access_token;
           gapi.client.setToken({ access_token: oauthToken });
+          
+          // Save token to localStorage so it persists
+          localStorage.setItem('google-drive-token', oauthToken);
+          localStorage.setItem('google-drive-token-expiry', Date.now() + (3600 * 1000)); // 1 hour
+          
           console.log('✅ Authentication successful!');
           resolve(response);
         },
@@ -919,7 +924,28 @@ const GoogleDriveManager = {
 
   // Check if authenticated
   isAuthenticated() {
-    return !!oauthToken && !!gapi.client.getToken();
+    // Check if we have a stored token
+    const storedToken = localStorage.getItem('google-drive-token');
+    const expiry = localStorage.getItem('google-drive-token-expiry');
+    
+    if (storedToken && expiry && Date.now() < parseInt(expiry)) {
+      // Token exists and hasn't expired
+      if (!oauthToken) {
+        oauthToken = storedToken;
+        if (gapi?.client) {
+          gapi.client.setToken({ access_token: oauthToken });
+        }
+      }
+      return true;
+    }
+    
+    // Token expired or doesn't exist
+    if (expiry && Date.now() >= parseInt(expiry)) {
+      localStorage.removeItem('google-drive-token');
+      localStorage.removeItem('google-drive-token-expiry');
+    }
+    
+    return !!oauthToken && !!gapi?.client?.getToken();
   },
 
   // Sign out
@@ -928,6 +954,8 @@ const GoogleDriveManager = {
       google.accounts.oauth2.revoke(oauthToken);
       gapi.client.setToken(null);
       oauthToken = null;
+      localStorage.removeItem('google-drive-token');
+      localStorage.removeItem('google-drive-token-expiry');
     }
   },
 
@@ -2627,8 +2655,15 @@ const GoogleDriveManager = {
         if (!confirm('Delete this document?')) return;
 
         try {
-          await GoogleDriveManager.deleteFile(fileId);
+          // Try to delete from Drive (may fail if already deleted)
+          try {
+            await GoogleDriveManager.deleteFile(fileId);
+          } catch (driveError) {
+            console.warn('File may already be deleted from Drive:', driveError);
+            // Continue anyway to clean up local records
+          }
 
+          // Remove from permanent records in localStorage
           if (isPerm) {
             const permStr = localStorage.getItem('strata-permanent-documents');
             const permDocs = permStr ? JSON.parse(permStr) : [];
@@ -2637,6 +2672,7 @@ const GoogleDriveManager = {
             setPermanentFiles(updated);
           }
 
+          // Reload files list
           await loadFiles();
           alert('✅ Document deleted');
         } catch (error) {
@@ -2905,6 +2941,15 @@ const GoogleDriveManager = {
                               style={{ borderColor: 'var(--primary)', color: 'var(--primary)', textDecoration: 'none', display: 'inline-block' }}
                             >
                               👁 View
+                            </a>
+                            <a
+                              href={doc.webContentLink || doc.webViewLink}
+                              download
+                              target="_blank"
+                              className="notes-button"
+                              style={{ borderColor: 'var(--success)', color: 'var(--success)', textDecoration: 'none', display: 'inline-block' }}
+                            >
+                              ⬇ Download
                             </a>
                             <button
                               className="delete-button"
