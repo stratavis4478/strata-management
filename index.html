@@ -26,19 +26,54 @@
     };
 
     let gapiReady = false;
+    let driveApiReady = false;
     let oauthToken;
     
-    // Load gapi immediately and wait for it
-    function initGoogleAPI() {
+    // Load and initialize Google API
+    async function initGoogleAPI() {
+      console.log('🔄 Starting Google API initialization...');
+      
+      // Wait for gapi to be available
+      let attempts = 0;
+      while (typeof gapi === 'undefined' && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
+      if (typeof gapi === 'undefined') {
+        console.error('❌ gapi failed to load');
+        return;
+      }
+      
+      console.log('✅ gapi loaded');
+      
+      // Load client library
       return new Promise((resolve) => {
         gapi.load('client', async () => {
           try {
+            console.log('🔄 Initializing gapi.client...');
+            
             await gapi.client.init({
               apiKey: GOOGLE_CONFIG.apiKey,
               discoveryDocs: GOOGLE_CONFIG.discoveryDocs,
             });
-            console.log('✅ Google API client initialized');
-            gapiReady = true;
+            
+            console.log('✅ gapi.client initialized');
+            
+            // Load Drive API explicitly
+            await gapi.client.load('drive', 'v3');
+            
+            console.log('✅ Drive API v3 loaded');
+            
+            // Verify drive is available
+            if (gapi.client.drive) {
+              driveApiReady = true;
+              gapiReady = true;
+              console.log('✅✅ Google Drive API fully ready!');
+            } else {
+              console.error('❌ Drive API loaded but not accessible');
+            }
+            
             resolve();
           } catch (error) {
             console.error('❌ Error initializing Google API:', error);
@@ -48,10 +83,10 @@
       });
     }
     
-    // Start loading immediately when page loads
-    if (typeof gapi !== 'undefined') {
+    // Auto-start initialization
+    window.addEventListener('load', () => {
       initGoogleAPI();
-    }
+    });
   </script>
   <style>
     * {
@@ -848,23 +883,32 @@
 const GoogleDriveManager = {
   // Initialize and authenticate
   async authenticate() {
+    console.log('🔐 Starting authentication...');
+    console.log('driveApiReady:', driveApiReady);
+    console.log('gapi.client.drive:', !!gapi?.client?.drive);
+    
     return new Promise((resolve, reject) => {
-      // Make sure gapi is loaded
-      if (!gapiReady || !gapi.client) {
-        reject(new Error('Google API not ready. Please refresh the page.'));
+      // Check if API is ready
+      if (!driveApiReady || !gapi?.client?.drive) {
+        console.error('❌ Drive API not ready');
+        reject(new Error('Google Drive API is not ready yet. Please wait 5 seconds and try again.'));
         return;
       }
+
+      console.log('✅ Drive API ready, requesting token...');
 
       const tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CONFIG.clientId,
         scope: GOOGLE_CONFIG.scope,
         callback: (response) => {
           if (response.error) {
+            console.error('❌ Auth error:', response);
             reject(response);
             return;
           }
           oauthToken = response.access_token;
           gapi.client.setToken({ access_token: oauthToken });
+          console.log('✅ Authentication successful!');
           resolve(response);
         },
       });
@@ -2621,9 +2665,35 @@ const GoogleDriveManager = {
               <p style={{ marginBottom: '30px', color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto 30px' }}>
                 Upload, view, and download strata documents stored in Google Drive (15 GB free storage)
               </p>
-              <button onClick={handleAuthenticate} className="add-button" style={{ padding: '15px 40px', fontSize: '1.1rem' }}>
-                🔗 Connect to Google Drive
+              
+              {/* API Status Indicator */}
+              <div style={{ 
+                padding: '15px', 
+                background: driveApiReady ? '#ECFDF5' : '#FEF3C7', 
+                borderRadius: '8px', 
+                marginBottom: '20px',
+                maxWidth: '500px',
+                margin: '0 auto 20px'
+              }}>
+                <div style={{ fontSize: '0.9rem', color: driveApiReady ? '#065F46' : '#92400E' }}>
+                  {driveApiReady ? '✅ Google Drive API Ready' : '⏳ Loading Google Drive API...'}
+                </div>
+                {!driveApiReady && (
+                  <div style={{ fontSize: '0.8rem', color: '#78350F', marginTop: '5px' }}>
+                    Please wait a few seconds...
+                  </div>
+                )}
+              </div>
+              
+              <button 
+                onClick={handleAuthenticate} 
+                className="add-button" 
+                style={{ padding: '15px 40px', fontSize: '1.1rem' }}
+                disabled={!driveApiReady}
+              >
+                {driveApiReady ? '🔗 Connect to Google Drive' : '⏳ Please Wait...'}
               </button>
+              
               <div style={{ marginTop: '30px', padding: '20px', background: '#F0F9FF', borderRadius: '12px', maxWidth: '600px', margin: '30px auto 0' }}>
                 <p style={{ fontSize: '0.9rem', color: '#075985', lineHeight: '1.6' }}>
                   <strong>📌 First time setup:</strong><br/>
