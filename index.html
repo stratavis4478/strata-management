@@ -2539,14 +2539,6 @@ const GoogleDriveManager = {
       const [docsSortBy, setDocsSortBy] = useState('date'); // date, name, size
       const [permSortBy, setPermSortBy] = useState('year'); // year, name, date, size
 
-      const formatBytes = (bytes) => {
-        if (!bytes) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-      };
-
       const sortDocuments = (docs, sortBy) => {
         const sorted = [...docs];
         if (sortBy === 'date') {
@@ -2574,9 +2566,8 @@ const GoogleDriveManager = {
       };
 
       const getYearColor = (year) => {
-        const colors = ['#ECFDF5', '#FEF3C7', '#FCE7F3', '#DBEAFE', '#FED7AA'];
-        const colorIndex = Math.floor((year - 2015) / 2) % colors.length;
-        return colors[colorIndex];
+        // Odd years: light blue, Even years: light green
+        return year % 2 === 0 ? '#ECFDF5' : '#DBEAFE';
       };
 
       // Check authentication status
