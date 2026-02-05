@@ -27,18 +27,37 @@
     };
 
     let pickerApiLoaded = false;
+    let gapiInited = false;
     let oauthToken;
     
     function gapiLoaded() {
       gapi.load('client:picker', async () => {
-        await gapi.client.init({
-          apiKey: GOOGLE_CONFIG.apiKey,
-          discoveryDocs: GOOGLE_CONFIG.discoveryDocs,
-        });
-        await gapi.client.load('drive', 'v3');
-        pickerApiLoaded = true;
-        console.log('Google Drive API loaded');
+        try {
+          await gapi.client.init({
+            apiKey: GOOGLE_CONFIG.apiKey,
+            discoveryDocs: GOOGLE_CONFIG.discoveryDocs,
+          });
+          // Explicitly load Drive API
+          await gapi.client.load('drive', 'v3');
+          gapiInited = true;
+          pickerApiLoaded = true;
+          console.log('✅ Google Drive API loaded successfully');
+        } catch (error) {
+          console.error('Error loading Google API:', error);
+        }
       });
+    }
+    
+    // Helper to ensure Drive API is loaded
+    async function ensureDriveApiLoaded() {
+      let attempts = 0;
+      while (!gapi?.client?.drive && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      if (!gapi?.client?.drive) {
+        throw new Error('Google Drive API failed to load. Please refresh the page and try again.');
+      }
     }
   </script>
   <style>
@@ -873,13 +892,7 @@ const GoogleDriveManager = {
 
   // Find or create folder
   async findOrCreateFolder(folderName, parentFolderId = null) {
-    // Wait for API to be ready
-    if (!gapi.client.drive) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (!gapi.client.drive) {
-        throw new Error('Google Drive API not loaded. Please refresh the page.');
-      }
-    }
+    await ensureDriveApiLoaded();
 
     let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
     if (parentFolderId) {
@@ -947,6 +960,7 @@ const GoogleDriveManager = {
   // List files in year folder
   async listFiles(year) {
     try {
+      await ensureDriveApiLoaded();
       const folderId = await this.getYearFolderId(year);
       
       const response = await gapi.client.drive.files.list({
@@ -964,6 +978,7 @@ const GoogleDriveManager = {
 
   // Delete file
   async deleteFile(fileId) {
+    await ensureDriveApiLoaded();
     await gapi.client.drive.files.delete({
       fileId: fileId,
     });
@@ -971,6 +986,7 @@ const GoogleDriveManager = {
 
   // Get storage quota
   async getStorageQuota() {
+    await ensureDriveApiLoaded();
     const response = await gapi.client.drive.about.get({
       fields: 'storageQuota',
     });
