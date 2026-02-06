@@ -909,9 +909,8 @@ const GoogleDriveManager = {
           oauthToken = response.access_token;
           gapi.client.setToken({ access_token: oauthToken });
           
-          // Save token to localStorage so it persists
+          // Save token to localStorage PERMANENTLY (no expiry)
           localStorage.setItem('google-drive-token', oauthToken);
-          localStorage.setItem('google-drive-token-expiry', Date.now() + (3600 * 1000)); // 1 hour
           
           console.log('✅ Authentication successful!');
           resolve(response);
@@ -924,12 +923,11 @@ const GoogleDriveManager = {
 
   // Check if authenticated
   isAuthenticated() {
-    // Check if we have a stored token
+    // Check if we have a stored token (no expiry check - permanent until sign out)
     const storedToken = localStorage.getItem('google-drive-token');
-    const expiry = localStorage.getItem('google-drive-token-expiry');
     
-    if (storedToken && expiry && Date.now() < parseInt(expiry)) {
-      // Token exists and hasn't expired
+    if (storedToken) {
+      // Token exists - restore it
       if (!oauthToken) {
         oauthToken = storedToken;
         if (gapi?.client) {
@@ -937,12 +935,6 @@ const GoogleDriveManager = {
         }
       }
       return true;
-    }
-    
-    // Token expired or doesn't exist
-    if (expiry && Date.now() >= parseInt(expiry)) {
-      localStorage.removeItem('google-drive-token');
-      localStorage.removeItem('google-drive-token-expiry');
     }
     
     return !!oauthToken && !!gapi?.client?.getToken();
@@ -955,7 +947,6 @@ const GoogleDriveManager = {
       gapi.client.setToken(null);
       oauthToken = null;
       localStorage.removeItem('google-drive-token');
-      localStorage.removeItem('google-drive-token-expiry');
     }
   },
 
@@ -2720,7 +2711,7 @@ const GoogleDriveManager = {
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        return Math.round(bytes / Math.pow(k, i)) + ' ' + sizes[i];
       };
 
       if (!isAuthenticated) {
@@ -2768,7 +2759,7 @@ const GoogleDriveManager = {
                 <p style={{ fontSize: '0.9rem', color: '#075985', lineHeight: '1.6' }}>
                   <strong>📌 First time setup:</strong><br/>
                   Click the button above and sign in with: <strong>stratavis4478@gmail.com</strong><br/>
-                  You'll only need to do this once per browser.
+                  You'll stay connected permanently (until you click "Sign Out").
                 </p>
               </div>
             </div>
@@ -2916,7 +2907,7 @@ const GoogleDriveManager = {
                   <thead>
                     <tr>
                       <th>Document Name</th>
-                      <th style={{ width: '80px' }}>Size</th>
+                      <th style={{ width: '120px' }}>Size</th>
                       <th style={{ width: '100px' }}>Date</th>
                       <th style={{ width: '200px' }}>Actions</th>
                     </tr>
@@ -3010,7 +3001,7 @@ const GoogleDriveManager = {
                   <thead>
                     <tr>
                       <th>Document Name</th>
-                      <th style={{ width: '80px' }}>Size</th>
+                      <th style={{ width: '120px' }}>Size</th>
                       <th style={{ width: '100px' }}>Date</th>
                       <th style={{ width: '60px' }}>Year</th>
                       <th style={{ width: '250px' }}>Actions</th>
