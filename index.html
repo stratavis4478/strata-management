@@ -921,9 +921,9 @@ const GoogleDriveManager = {
     });
   },
 
-  // Check if authenticated
-  isAuthenticated() {
-    // Check if we have a stored token (no expiry check - permanent until sign out)
+  // Check if authenticated and token is still valid
+  async isAuthenticated() {
+    // Check if we have a stored token
     const storedToken = localStorage.getItem('google-drive-token');
     
     if (storedToken) {
@@ -934,7 +934,23 @@ const GoogleDriveManager = {
           gapi.client.setToken({ access_token: oauthToken });
         }
       }
-      return true;
+      
+      // Validate token by making a test API call
+      try {
+        if (gapi?.client?.drive) {
+          await gapi.client.drive.about.get({ fields: 'user' });
+          return true; // Token is valid
+        }
+      } catch (error) {
+        // Token is expired or invalid
+        console.warn('Token expired, clearing...');
+        localStorage.removeItem('google-drive-token');
+        oauthToken = null;
+        if (gapi?.client) {
+          gapi.client.setToken(null);
+        }
+        return false;
+      }
     }
     
     return !!oauthToken && !!gapi?.client?.getToken();
@@ -952,39 +968,43 @@ const GoogleDriveManager = {
 
   // Find or create folder
   async findOrCreateFolder(folderName, parentFolderId = null) {
-    if (!gapi.client.drive) {
-      throw new Error('Drive API not loaded. Please refresh and reconnect.');
+    try {
+      if (!gapi.client.drive) {
+        throw new Error('Drive API not loaded. Please refresh and reconnect.');
+      }
+
+      let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      if (parentFolderId) {
+        query += ` and '${parentFolderId}' in parents`;
+      }
+
+      const response = await gapi.client.drive.files.list({
+        q: query,
+        fields: 'files(id, name)',
+      });
+
+      if (response.result.files && response.result.files.length > 0) {
+        return response.result.files[0].id;
+      }
+
+      // Create folder
+      const folderMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+      };
+      if (parentFolderId) {
+        folderMetadata.parents = [parentFolderId];
+      }
+
+      const folder = await gapi.client.drive.files.create({
+        resource: folderMetadata,
+        fields: 'id',
+      });
+
+      return folder.result.id;
+    } catch (error) {
+      this.handleApiError(error);
     }
-
-    let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-    if (parentFolderId) {
-      query += ` and '${parentFolderId}' in parents`;
-    }
-
-    const response = await gapi.client.drive.files.list({
-      q: query,
-      fields: 'files(id, name)',
-    });
-
-    if (response.result.files && response.result.files.length > 0) {
-      return response.result.files[0].id;
-    }
-
-    // Create folder
-    const folderMetadata = {
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder',
-    };
-    if (parentFolderId) {
-      folderMetadata.parents = [parentFolderId];
-    }
-
-    const folder = await gapi.client.drive.files.create({
-      resource: folderMetadata,
-      fields: 'id',
-    });
-
-    return folder.result.id;
   },
 
   // Get year folder ID
@@ -1082,6 +1102,20 @@ const GoogleDriveManager = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  },
+
+  // Handle API errors (especially 401 unauthorized)
+  handleApiError(error) {
+    if (error?.result?.error?.code === 401 || error?.status === 401) {
+      // Token expired
+      localStorage.removeItem('google-drive-token');
+      oauthToken = null;
+      if (gapi?.client) {
+        gapi.client.setToken(null);
+      }
+      throw new Error('Your session expired. Please reconnect to Google Drive.');
+    }
+    throw error;
   }
 };
 
@@ -2563,7 +2597,11 @@ const GoogleDriveManager = {
 
       // Check authentication status
       useEffect(() => {
-        setIsAuthenticated(GoogleDriveManager.isAuthenticated());
+        const checkAuth = async () => {
+          const isAuth = await GoogleDriveManager.isAuthenticated();
+          setIsAuthenticated(isAuth);
+        };
+        checkAuth();
       }, []);
 
       // Load files when authenticated
@@ -2669,7 +2707,13 @@ const GoogleDriveManager = {
           setUploadForm({ name: '', date: '', isPermanent: false });
         } catch (error) {
           console.error('Upload error:', error);
-          alert('❌ Upload failed: ' + error.message);
+          const errorMsg = error.message || 'Unknown error';
+          if (errorMsg.includes('session expired') || errorMsg.includes('reconnect')) {
+            alert('❌ ' + errorMsg + '\n\nThe page will reload so you can reconnect.');
+            setTimeout(() => window.location.reload(), 2000);
+          } else {
+            alert('❌ Upload failed: ' + errorMsg);
+          }
         } finally {
           setIsUploading(false);
         }
