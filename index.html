@@ -1664,6 +1664,11 @@ const SimpleCloudStorage = {
           ['CRF Projected Closing', (data.crfBaseline || 0) + totals.surplus]
         ];
         const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+        // Set column widths for Summary sheet
+        ws1['!cols'] = [
+          { wch: 40 },  // First column - wide for labels with text wrapping
+          { wch: 15 }   // Second column - values
+        ];
         XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
         // Strata Fees sheet
@@ -1675,6 +1680,16 @@ const SimpleCloudStorage = {
           feesData.push([month, fees.unit700, fees.unit702, fees.unit704, fees.unit706, total, notes]);
         });
         const ws2 = XLSX.utils.aoa_to_sheet(feesData);
+        // Set column widths for Strata Fees sheet
+        ws2['!cols'] = [
+          { wch: 15 },  // Month
+          { wch: 12 },  // Unit 700
+          { wch: 12 },  // Unit 702
+          { wch: 12 },  // Unit 704
+          { wch: 12 },  // Unit 706
+          { wch: 12 },  // Total
+          { wch: 30 }   // Notes - wider
+        ];
         XLSX.utils.book_append_sheet(wb, ws2, 'Strata Fees');
 
         // Expenses sheet
@@ -1694,6 +1709,14 @@ const SimpleCloudStorage = {
           expensesData.push(row);
         });
         const ws3 = XLSX.utils.aoa_to_sheet(expensesData);
+        // Set column widths for Expenses sheet
+        ws3['!cols'] = [
+          { wch: 35 },  // Category - extra wide for long names
+          { wch: 12 },  // Frequency
+          ...Array(12).fill({ wch: 10 }),  // 12 months columns
+          { wch: 12 },  // Total
+          { wch: 30 }   // Notes - wider
+        ];
         XLSX.utils.book_append_sheet(wb, ws3, 'Expenses');
 
         // Insurance sheet
@@ -1709,6 +1732,11 @@ const SimpleCloudStorage = {
           ['Deductible', data.insurance.deductible]
         ];
         const ws4 = XLSX.utils.aoa_to_sheet(insuranceData);
+        // Set column widths for Insurance sheet
+        ws4['!cols'] = [
+          { wch: 35 },  // Field names - wide
+          { wch: 20 }   // Values
+        ];
         XLSX.utils.book_append_sheet(wb, ws4, 'Insurance');
 
         XLSX.writeFile(wb, `strata-data-${selectedYear}.xlsx`);
@@ -1917,6 +1945,8 @@ const SimpleCloudStorage = {
 
     // Dashboard Component
     function Dashboard({ data, totals, selectedYear, setData }) {
+      const [dashNotes, setDashNotes] = useState(data.dashboardNotes || '');
+      
       const chartData = MONTHS.map(month => {
         const fees = data.strataFees[month];
         const income = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
@@ -2087,6 +2117,38 @@ const SimpleCloudStorage = {
               <HorizontalBarChart data={expenseBreakdown} />
             </div>
           )}
+
+          <div className="card">
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+              const section = document.getElementById('dash-notes-section');
+              section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Dashboard Notes & Reminders</h3>
+            </div>
+            <div id="dash-notes-section" style={{ padding: '20px', display: 'none' }}>
+              <textarea
+                value={dashNotes}
+                onChange={(e) => {
+                  setDashNotes(e.target.value);
+                  setData(prev => ({ ...prev, dashboardNotes: e.target.value }));
+                }}
+                placeholder="Add reminders about CRF balance verification, upcoming expenses, or other important notes..."
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '12px',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+                Use this space for CRF balance confirmations, upcoming major expenses, or other financial reminders.
+              </small>
+            </div>
+          </div>
         </>
       );
     }
@@ -2824,10 +2886,12 @@ const SimpleCloudStorage = {
       const [showUploadModal, setShowUploadModal] = useState(false);
       const [selectedFile, setSelectedFile] = useState(null);
       const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
-      const [docsSortBy, setDocsSortBy] = useState('date'); // date, name, size
-      const [permSortBy, setPermSortBy] = useState('year'); // year, name, date, size
+      const [docsSortBy, setDocsSortBy] = useState('date');
+      const [permSortBy, setPermSortBy] = useState('year');
+      const [showRegulationsModal, setShowRegulationsModal] = useState(false);
+      const [docNotes, setDocNotes] = useState(data.documentNotes || '');
       
-      // Use permanentDocuments from props (managed at app level for global sync)
+      // Use permanentDocuments from props
       const permanentFiles = permanentDocuments || [];
       const [showRegulationsModal, setShowRegulationsModal] = useState(false);
       const [docNotes, setDocNotes] = useState(data.documentNotes || '');
@@ -3081,6 +3145,81 @@ const SimpleCloudStorage = {
 
       return (
         <>
+          {showRegulationsModal && (
+            <div className="upload-modal" onClick={() => setShowRegulationsModal(false)}>
+              <div className="upload-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+                <h3 style={{ color: 'var(--primary)', marginBottom: '20px' }}>📋 Strata Information & Record Keeping</h3>
+                
+                <div style={{ marginBottom: '20px', lineHeight: '1.8' }}>
+                  <h4 style={{ color: '#374151', marginBottom: '10px' }}>Document Retention Periods (BC Strata Property Act)</h4>
+                  
+                  <div style={{ background: '#ECFDF5', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '2px solid #10B981' }}>
+                    <strong style={{ color: '#065F46' }}>✓ Permanent Records (Keep Forever)</strong>
+                    <ul style={{ marginLeft: '20px', marginTop: '8px', color: '#047857' }}>
+                      <li>Minutes of all annual and special general meetings</li>
+                      <li>Bylaws and amendments</li>
+                      <li>Rules and amendments</li>
+                      <li>Registered strata plan</li>
+                      <li>Judgment, court order, or arbitrator's decision</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ background: '#FEF3C7', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '2px solid #F59E0B' }}>
+                    <strong style={{ color: '#92400E' }}>⏱ 6-Year Records</strong>
+                    <ul style={{ marginLeft: '20px', marginTop: '8px', color: '#78350F' }}>
+                      <li>Annual budget and financial statements</li>
+                      <li>Bank statements, cancelled cheques, certificates of deposit</li>
+                      <li>Chart of strata lot accounts</li>
+                      <li>Depreciation reports</li>
+                      <li>Rental disclosure statements</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ background: '#DBEAFE', padding: '15px', borderRadius: '8px', border: '2px solid #3B82F6' }}>
+                    <strong style={{ color: '#1E40AF' }}>⏱ 2-Year Records</strong>
+                    <ul style={{ marginLeft: '20px', marginTop: '8px', color: '#1E3A8A' }}>
+                      <li>Council meeting minutes</li>
+                      <li>Correspondence (emails, letters)</li>
+                      <li>Receipts and invoices</li>
+                      <li>Insurance policies</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div style={{ background: '#F3F4F6', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                  <strong>📚 Full Regulations & Requirements:</strong>
+                  <p style={{ marginTop: '8px', marginBottom: '12px', color: '#4B5563' }}>
+                    BC Government - Strata Housing: Information and Record Keeping
+                  </p>
+                  <a 
+                    href="https://www2.gov.bc.ca/gov/content/housing-tenancy/strata-housing/operating-a-strata/information-and-record-keeping"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ 
+                      display: 'inline-block',
+                      padding: '10px 20px',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                      fontWeight: '600'
+                    }}
+                  >
+                    🔗 View Full BC Strata Regulations
+                  </a>
+                </div>
+
+                <button 
+                  className="modal-button cancel" 
+                  onClick={() => setShowRegulationsModal(false)}
+                  style={{ width: '100%' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
           {showUploadModal && (
             <div className="upload-modal" onClick={() => setShowUploadModal(false)}>
               <div className="upload-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -3137,6 +3276,13 @@ const SimpleCloudStorage = {
             <div className="card-header">
               <h2 className="card-title">Upload Document for {selectedYear}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <button
+                  onClick={() => setShowRegulationsModal(true)}
+                  className="export-button pdf"
+                  style={{ fontSize: '0.85rem', padding: '8px 16px' }}
+                >
+                  📋 BC Record Keeping Rules
+                </button>
                 {storageQuota && (
                   <>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Drive Storage:</span>
@@ -3177,6 +3323,38 @@ const SimpleCloudStorage = {
                   {isUploading ? '⏳ Uploading...' : '📎 Choose File'}
                 </label>
               </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+              const section = document.getElementById('doc-notes-section');
+              section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Document Notes & Reminders</h3>
+            </div>
+            <div id="doc-notes-section" style={{ padding: '20px', display: 'none' }}>
+              <textarea
+                value={docNotes}
+                onChange={(e) => {
+                  setDocNotes(e.target.value);
+                  setData(prev => ({ ...prev, documentNotes: e.target.value }));
+                }}
+                placeholder="Track missing documents, renewal dates, or other reminders..."
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '12px',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+                Use this space for reminders about missing documents, upcoming renewals, etc.
+              </small>
             </div>
           </div>
 
