@@ -1119,6 +1119,93 @@ const GoogleDriveManager = {
   }
 };
 
+// Simple Cloud Storage Manager
+const SimpleCloudStorage = {
+  dataFileName: 'strata-data-all-years.json',
+  strataFolderId: null,
+  dataFileId: null,
+
+  async initialize() {
+    console.log('☁️ Initializing cloud storage...');
+    this.strataFolderId = await GoogleDriveManager.findOrCreateFolder(GOOGLE_CONFIG.strataFolderName);
+    
+    // Find or create data file
+    const response = await gapi.client.drive.files.list({
+      q: `name='${this.dataFileName}' and '${this.strataFolderId}' in parents and trashed=false`,
+      fields: 'files(id, name)',
+    });
+
+    if (response.result.files && response.result.files.length > 0) {
+      this.dataFileId = response.result.files[0].id;
+      console.log('✅ Found existing data file');
+    } else {
+      // Create new file
+      console.log('📝 Creating new data file');
+      const fileMetadata = {
+        name: this.dataFileName,
+        mimeType: 'application/json',
+        parents: [this.strataFolderId]
+      };
+
+      const file = new Blob([JSON.stringify({}, null, 2)], { type: 'application/json' });
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
+      form.append('file', file);
+
+      const token = gapi.client.getToken();
+      const uploadResponse = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+        {
+          method: 'POST',
+          headers: new Headers({ Authorization: 'Bearer ' + token.access_token }),
+          body: form,
+        }
+      );
+
+      const result = await uploadResponse.json();
+      this.dataFileId = result.id;
+      console.log('✅ Created data file');
+    }
+    
+    return true;
+  },
+
+  async loadAllData() {
+    console.log('📥 Loading all data from Drive...');
+    const response = await gapi.client.drive.files.get({
+      fileId: this.dataFileId,
+      alt: 'media'
+    });
+    console.log('✅ Data loaded from Drive');
+    return response.result || {};
+  },
+
+  async saveAllData(allData) {
+    console.log('💾 Saving all data to Drive...');
+    const fileContent = JSON.stringify(allData, null, 2);
+    const file = new Blob([fileContent], { type: 'application/json' });
+    const token = gapi.client.getToken();
+    
+    const response = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${this.dataFileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: new Headers({ 
+          Authorization: 'Bearer ' + token.access_token,
+          'Content-Type': 'application/json'
+        }),
+        body: file,
+      }
+    );
+
+    if (response.ok) {
+      console.log('✅ Data saved to Drive');
+      return true;
+    }
+    throw new Error('Save failed');
+  }
+};
+
 
     const { useState, useEffect, useMemo } = React;
 
@@ -1284,44 +1371,101 @@ const GoogleDriveManager = {
       const currentYear = new Date().getFullYear();
       const [selectedYear, setSelectedYear] = useState(currentYear);
       const [activeTab, setActiveTab] = useState('dashboard');
-      const [data, setData] = useState(() => {
-        const stored = localStorage.getItem(`strata-data-${currentYear}`);
-        return stored ? JSON.parse(stored) : initializeData(currentYear);
-      });
+      const [allYearsData, setAllYearsData] = useState(null); // null = loading
+      const [cloudReady, setCloudReady] = useState(false);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-      // Load data for selected year
+      // Current year's data
+      const data = allYearsData?.[selectedYear] || initializeData(selectedYear);
+
+      // Check authentication and initialize cloud storage
       useEffect(() => {
-        const stored = localStorage.getItem(`strata-data-${selectedYear}`);
-        setData(stored ? JSON.parse(stored) : initializeData(selectedYear));
-      }, [selectedYear]);
-
-      // Save data whenever it changes
-      useEffect(() => {
-        localStorage.setItem(`strata-data-${selectedYear}`, JSON.stringify(data));
-      }, [data, selectedYear]);
-
-      // Get available years from localStorage plus current year
-      const yearOptions = useMemo(() => {
-        const years = new Set();
-        const currentYear = new Date().getFullYear();
-        
-        // Add current year
-        years.add(currentYear);
-        
-        // Scan localStorage for existing years
-        for (let key in localStorage) {
-          if (key.startsWith('strata-data-')) {
-            const year = parseInt(key.replace('strata-data-', ''));
-            if (!isNaN(year)) {
-              years.add(year);
+        const checkAndInit = async () => {
+          const isAuth = await GoogleDriveManager.isAuthenticated();
+          setIsAuthenticated(isAuth);
+          
+          if (isAuth && !cloudReady) {
+            try {
+              await SimpleCloudStorage.initialize();
+              const cloudData = await SimpleCloudStorage.loadAllData();
+              
+              // If no data in cloud but have localStorage, migrate it
+              if (Object.keys(cloudData).length === 0) {
+                const localData = {};
+                for (let key in localStorage) {
+                  if (key.startsWith('strata-data-')) {
+                    const year = key.replace('strata-data-', '');
+                    localData[year] = JSON.parse(localStorage.getItem(key));
+                  }
+                }
+                
+                if (Object.keys(localData).length > 0) {
+                  console.log('📦 Migrating localStorage data to cloud...');
+                  await SimpleCloudStorage.saveAllData(localData);
+                  setAllYearsData(localData);
+                } else {
+                  // Start fresh with current year
+                  const initial = { [currentYear]: initializeData(currentYear) };
+                  setAllYearsData(initial);
+                }
+              } else {
+                setAllYearsData(cloudData);
+              }
+              
+              setCloudReady(true);
+            } catch (error) {
+              console.error('Cloud init error:', error);
+              alert('Failed to connect to cloud storage. Using local storage as fallback.');
+              // Fall back to localStorage
+              const stored = localStorage.getItem(`strata-data-${currentYear}`);
+              setAllYearsData({ [currentYear]: stored ? JSON.parse(stored) : initializeData(currentYear) });
             }
           }
-        }
+        };
         
-        return Array.from(years).sort((a, b) => b - a); // Newest first
-      }, [data]); // Re-calculate when data changes
+        checkAndInit();
+      }, [isAuthenticated, cloudReady, currentYear]);
 
-      const addNewYear = () => {
+      // Save to cloud when data changes (debounced)
+      useEffect(() => {
+        if (!cloudReady || !allYearsData) return;
+        
+        const timer = setTimeout(async () => {
+          try {
+            await SimpleCloudStorage.saveAllData(allYearsData);
+          } catch (error) {
+            console.error('Save error:', error);
+            // Fallback to localStorage
+            localStorage.setItem(`strata-data-${selectedYear}`, JSON.stringify(data));
+          }
+        }, 1000);
+        
+        return () => clearTimeout(timer);
+      }, [allYearsData, cloudReady]);
+
+      // Update data when something changes
+      const setData = (newData) => {
+        setAllYearsData(prev => ({
+          ...prev,
+          [selectedYear]: typeof newData === 'function' ? newData(data) : newData
+        }));
+      };
+
+      // Get available years from cloud data
+      const yearOptions = useMemo(() => {
+        if (!allYearsData) return [currentYear];
+        
+        const years = new Set();
+        years.add(currentYear);
+        
+        Object.keys(allYearsData).forEach(year => {
+          years.add(parseInt(year));
+        });
+        
+        return Array.from(years).sort((a, b) => b - a);
+      }, [allYearsData, currentYear]);
+
+      const addNewYear = async () => {
         const yearInput = prompt('Enter year to add (e.g., 2027):');
         if (!yearInput) return;
         
@@ -1339,11 +1483,13 @@ const GoogleDriveManager = {
         
         // Create initial data for new year
         const newYearData = initializeData(newYear);
-        localStorage.setItem(`strata-data-${newYear}`, JSON.stringify(newYearData));
+        setAllYearsData(prev => ({
+          ...prev,
+          [newYear]: newYearData
+        }));
         
         // Switch to new year
         setSelectedYear(newYear);
-        setData(newYearData);
       };
 
       // Calculate totals
@@ -1556,6 +1702,89 @@ const GoogleDriveManager = {
 
         XLSX.writeFile(wb, `strata-data-${selectedYear}.xlsx`);
       };
+
+      // Show loading or connection prompt
+      if (!isAuthenticated) {
+        return (
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '60px',
+              borderRadius: '20px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              textAlign: 'center',
+              maxWidth: '500px'
+            }}>
+              <div style={{ fontSize: '5rem', marginBottom: '20px' }}>☁️</div>
+              <h1 style={{ color: '#667eea', marginBottom: '15px' }}>Strata Management System</h1>
+              <p style={{ color: '#666', marginBottom: '30px', lineHeight: '1.6' }}>
+                Connect to Google Drive to access your strata data from any device.
+              </p>
+              <div style={{ textAlign: 'left', background: '#F3F4F6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
+                <p style={{ fontWeight: '600', marginBottom: '10px', color: '#374151' }}>What you'll need:</p>
+                <ul style={{ marginLeft: '20px', color: '#6B7280', lineHeight: '1.8' }}>
+                  <li>Email: <strong>stratavis4478@gmail.com</strong></li>
+                  <li>Password for the account</li>
+                  <li>~30 seconds to connect</li>
+                </ul>
+              </div>
+              <button 
+                onClick={async () => {
+                  try {
+                    await GoogleDriveManager.authenticate();
+                    setIsAuthenticated(true);
+                  } catch (error) {
+                    alert('Connection failed. Please try again.');
+                  }
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '15px 40px',
+                  fontSize: '1.1rem',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                }}
+              >
+                🔗 Connect to Google Drive
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (!cloudReady || !allYearsData) {
+        return (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '60px',
+              borderRadius: '20px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '4rem', marginBottom: '20px', animation: 'pulse 2s infinite' }}>☁️</div>
+              <h2 style={{ color: '#667eea', marginBottom: '10px' }}>Loading Your Data...</h2>
+              <p style={{ color: '#666' }}>Connecting to Google Drive</p>
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div>
@@ -2563,6 +2792,8 @@ const GoogleDriveManager = {
       const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
       const [docsSortBy, setDocsSortBy] = useState('date'); // date, name, size
       const [permSortBy, setPermSortBy] = useState('year'); // year, name, date, size
+      const [showRegulationsModal, setShowRegulationsModal] = useState(false);
+      const [docNotes, setDocNotes] = useState(data.documentNotes || '');
 
       const sortDocuments = (docs, sortBy) => {
         const sorted = [...docs];
@@ -2800,11 +3031,24 @@ const GoogleDriveManager = {
               </button>
               
               <div style={{ marginTop: '30px', padding: '20px', background: '#F0F9FF', borderRadius: '12px', maxWidth: '600px', margin: '30px auto 0' }}>
-                <p style={{ fontSize: '0.9rem', color: '#075985', lineHeight: '1.6' }}>
+                <p style={{ fontSize: '0.9rem', color: '#075985', lineHeight: '1.6', marginBottom: '15px' }}>
                   <strong>📌 First time setup:</strong><br/>
                   Click the button above and sign in with: <strong>stratavis4478@gmail.com</strong><br/>
-                  You'll stay connected permanently (until you click "Sign Out").
+                  Connection lasts ~1 hour of activity.
                 </p>
+                <details style={{ marginTop: '15px' }}>
+                  <summary style={{ cursor: 'pointer', fontWeight: '600', color: '#0369a1' }}>
+                    📖 Reconnection Steps (if needed)
+                  </summary>
+                  <ol style={{ marginLeft: '20px', marginTop: '10px', color: '#075985', lineHeight: '1.8', fontSize: '0.85rem' }}>
+                    <li>Click "Connect to Google Drive" button</li>
+                    <li>Enter email: <strong>stratavis4478@gmail.com</strong></li>
+                    <li>Enter password</li>
+                    <li>Click "Continue" on screen: "Google hasn't verified this app"</li>
+                    <li>Click "Continue" on screen: "stratavis4478.github.io wants access"</li>
+                    <li>Done! You're connected</li>
+                  </ol>
+                </details>
               </div>
             </div>
           </div>
