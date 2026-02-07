@@ -1528,6 +1528,16 @@ const SimpleCloudStorage = {
       }, [data]);
 
       const updateStrataFees = (month, unit, value) => {
+        // Handle general notes field
+        if (month === 'strataFeesNotes') {
+          setData(prev => ({
+            ...prev,
+            strataFeesNotes: unit // value is passed as second param in this case
+          }));
+          return;
+        }
+        
+        // Handle regular fee updates
         setData(prev => ({
           ...prev,
           strataFees: {
@@ -1543,6 +1553,16 @@ const SimpleCloudStorage = {
       updateStrataFees.__setData = setData;
 
       const updateExpense = (category, month, value) => {
+        // Handle general notes field
+        if (category === 'expensesTabNotes') {
+          setData(prev => ({
+            ...prev,
+            expensesTabNotes: month // value is passed as second param
+          }));
+          return;
+        }
+        
+        // Handle regular expense updates
         setData(prev => ({
           ...prev,
           expenses: {
@@ -2155,6 +2175,8 @@ const SimpleCloudStorage = {
 
     // Strata Fees Tab
     function StrataFeesTab({ data, updateStrataFees }) {
+      const [feesNotes, setFeesNotes] = useState(data.strataFeesNotes || '');
+      
       const [notesModal, setNotesModal] = useState({ isOpen: false, month: null, note: '' });
 
       const saveNote = (note) => {
@@ -2341,6 +2363,38 @@ const SimpleCloudStorage = {
               </table>
             </div>
           </div>
+
+          <div className="card">
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+              const section = document.getElementById('fees-notes-section');
+              section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Strata Fees Notes</h3>
+            </div>
+            <div id="fees-notes-section" style={{ padding: '20px', display: 'none' }}>
+              <textarea
+                value={feesNotes}
+                onChange={(e) => {
+                  setFeesNotes(e.target.value);
+                  updateStrataFees('strataFeesNotes', e.target.value);
+                }}
+                placeholder="Track late payments, payment arrangements, fee changes, or other strata fee notes..."
+                style={{
+                  width: '100%',
+                  minHeight: '100px',
+                  padding: '12px',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+                Use this space for payment tracking, fee increase notes, or other reminders.
+              </small>
+            </div>
+          </div>
         </>
       );
     }
@@ -2350,6 +2404,7 @@ const SimpleCloudStorage = {
       const [newCategoryName, setNewCategoryName] = useState('');
       const [newCategoryFrequency, setNewCategoryFrequency] = useState('onetime');
       const [notesModal, setNotesModal] = useState({ isOpen: false, key: null, note: '' });
+      const [expensesNotes, setExpensesNotes] = useState(data.expensesTabNotes || '');
 
       const getFrequencyBadge = (frequency) => {
         const badges = {
@@ -2609,12 +2664,46 @@ const SimpleCloudStorage = {
             </ul>
           </div>
         </div>
+
+        <div className="card">
+          <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+            const section = document.getElementById('expenses-notes-section');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+          }}>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Expenses Notes</h3>
+          </div>
+          <div id="expenses-notes-section" style={{ padding: '20px', display: 'none' }}>
+            <textarea
+              value={expensesNotes}
+              onChange={(e) => {
+                setExpensesNotes(e.target.value);
+                updateExpense('expensesTabNotes', e.target.value);
+              }}
+              placeholder="Track upcoming expenses, vendor contacts, maintenance schedules, or other expense-related notes..."
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '12px',
+                border: '2px solid #E5E7EB',
+                borderRadius: '8px',
+                fontSize: '0.95rem',
+                fontFamily: 'inherit',
+                resize: 'vertical'
+              }}
+            />
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+              Use this space for vendor information, maintenance schedules, or budget planning notes.
+            </small>
+          </div>
+        </div>
         </>
       );
     }
 
     // Insurance Tab
     function InsuranceTab({ data, setData }) {
+      const [insuranceNotes, setInsuranceNotes] = useState(data.insuranceTabNotes || '');
+      
       const updateInsurance = (field, value) => {
         setData(prev => ({
           ...prev,
@@ -2871,6 +2960,38 @@ const SimpleCloudStorage = {
                 </span>
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+            const section = document.getElementById('insurance-notes-section');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+          }}>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Insurance Notes</h3>
+          </div>
+          <div id="insurance-notes-section" style={{ padding: '20px', display: 'none' }}>
+            <textarea
+              value={insuranceNotes}
+              onChange={(e) => {
+                setInsuranceNotes(e.target.value);
+                setData(prev => ({ ...prev, insuranceTabNotes: e.target.value }));
+              }}
+              placeholder="Track policy changes, broker contact info, claims history, renewal reminders, or other insurance notes..."
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '12px',
+                border: '2px solid #E5E7EB',
+                borderRadius: '8px',
+                fontSize: '0.95rem',
+                fontFamily: 'inherit',
+                resize: 'vertical'
+              }}
+            />
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+              Use this space for broker details, coverage change history, or renewal reminders.
+            </small>
           </div>
         </div>
       );
