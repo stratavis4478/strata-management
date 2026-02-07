@@ -2893,8 +2893,6 @@ const SimpleCloudStorage = {
       
       // Use permanentDocuments from props
       const permanentFiles = permanentDocuments || [];
-      const [showRegulationsModal, setShowRegulationsModal] = useState(false);
-      const [docNotes, setDocNotes] = useState(data.documentNotes || '');
 
       const sortDocuments = (docs, sortBy) => {
         const sorted = [...docs];
