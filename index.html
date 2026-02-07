@@ -1738,34 +1738,6 @@ const SimpleCloudStorage = {
                 Connect to Google Drive to access your strata data from any device.
               </p>
               
-              <div style={{ textAlign: 'left', background: '#FEF3C7', padding: '20px', borderRadius: '10px', marginBottom: '20px', border: '2px solid #F59E0B' }}>
-                <p style={{ fontWeight: '600', marginBottom: '12px', color: '#92400E', fontSize: '1.05rem' }}>📋 Connection Steps:</p>
-                <ol style={{ marginLeft: '20px', color: '#78350F', lineHeight: '2', fontSize: '0.95rem' }}>
-                  <li>Click "Connect to Google Drive" button below</li>
-                  <li>Enter email: <strong>stratavis4478@gmail.com</strong></li>
-                  <li>Enter the account password</li>
-                  <li>Click <strong>"Continue"</strong> on "Google hasn't verified this app" screen</li>
-                  <li>Click <strong>"Continue"</strong> on "wants access to your Google Account" screen</li>
-                  <li>Done! Your data will load automatically</li>
-                </ol>
-              </div>
-
-              <div style={{ textAlign: 'left', background: '#E0F2FE', padding: '15px', borderRadius: '10px', marginBottom: '30px', border: '2px solid #0EA5E9' }}>
-                <p style={{ fontWeight: '600', color: '#075985', marginBottom: '8px' }}>⏰ About Reconnecting:</p>
-                <p style={{ color: '#0C4A6E', fontSize: '0.9rem', lineHeight: '1.6' }}>
-                  You'll need to reconnect after ~1 hour of inactivity or when you refresh the page. 
-                  This is a Google security feature. Just follow the same steps above to reconnect.
-                </p>
-              </div>
-              
-              <div style={{ textAlign: 'left', background: '#F3F4F6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
-                <p style={{ fontWeight: '600', marginBottom: '10px', color: '#374151' }}>What you'll need:</p>
-                <ul style={{ marginLeft: '20px', color: '#6B7280', lineHeight: '1.8' }}>
-                  <li>Email: <strong>stratavis4478@gmail.com</strong></li>
-                  <li>Password for the account</li>
-                  <li>~30 seconds to connect</li>
-                </ul>
-              </div>
               <button 
                 onClick={async () => {
                   try {
@@ -1784,11 +1756,36 @@ const SimpleCloudStorage = {
                   borderRadius: '10px',
                   cursor: 'pointer',
                   fontWeight: '600',
-                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                  marginBottom: '30px'
                 }}
               >
                 🔗 Connect to Google Drive
               </button>
+
+              <details style={{ textAlign: 'left', background: '#FEF3C7', padding: '20px', borderRadius: '10px', marginBottom: '15px', border: '2px solid #F59E0B', cursor: 'pointer' }}>
+                <summary style={{ fontWeight: '600', color: '#92400E', fontSize: '1.05rem', cursor: 'pointer' }}>
+                  📋 Connection Steps (Click to Expand)
+                </summary>
+                <ol style={{ marginLeft: '20px', marginTop: '12px', color: '#78350F', lineHeight: '2', fontSize: '0.95rem' }}>
+                  <li>Click "Connect to Google Drive" button above</li>
+                  <li>Enter email: <strong>stratavis4478@gmail.com</strong></li>
+                  <li>Enter the account password</li>
+                  <li>Click <strong>"Continue"</strong> on "Google hasn't verified this app" screen</li>
+                  <li>Click <strong>"Continue"</strong> on "wants access to your Google Account" screen</li>
+                  <li>Done! Your data will load automatically</li>
+                </ol>
+              </details>
+
+              <details style={{ textAlign: 'left', background: '#E0F2FE', padding: '15px', borderRadius: '10px', border: '2px solid #0EA5E9', cursor: 'pointer' }}>
+                <summary style={{ fontWeight: '600', color: '#075985', cursor: 'pointer' }}>
+                  ⏰ About Reconnecting (Click to Expand)
+                </summary>
+                <p style={{ color: '#0C4A6E', fontSize: '0.9rem', lineHeight: '1.6', marginTop: '12px' }}>
+                  You'll need to reconnect after ~1 hour of inactivity or when you refresh the page. 
+                  This is a Google security feature. Just follow the same steps above to reconnect.
+                </p>
+              </details>
             </div>
           </div>
         );
@@ -2880,12 +2877,9 @@ const SimpleCloudStorage = {
         if (isAuthenticated) {
           loadFiles();
           loadStorageQuota();
-          // Load permanent documents from data instead of localStorage
-          if (data.permanentDocuments) {
-            setPermanentFiles(data.permanentDocuments);
-          }
+          // Permanent documents managed at app level, no need to set here
         }
-      }, [isAuthenticated, selectedYear, data.permanentDocuments]);
+      }, [isAuthenticated, selectedYear]);
 
       const loadFiles = async () => {
         try {
