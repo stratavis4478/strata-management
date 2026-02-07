@@ -1377,6 +1377,9 @@ const SimpleCloudStorage = {
 
       // Current year's data
       const data = allYearsData?.[selectedYear] || initializeData(selectedYear);
+      
+      // Permanent documents stored at root level
+      const permanentDocuments = allYearsData?.permanentDocuments || [];
 
       // Check authentication and initialize cloud storage
       useEffect(() => {
@@ -1448,6 +1451,14 @@ const SimpleCloudStorage = {
         setAllYearsData(prev => ({
           ...prev,
           [selectedYear]: typeof newData === 'function' ? newData(data) : newData
+        }));
+      };
+      
+      // Update permanent documents (stored at root level)
+      const setPermanentDocuments = (newDocs) => {
+        setAllYearsData(prev => ({
+          ...prev,
+          permanentDocuments: typeof newDocs === 'function' ? newDocs(permanentDocuments) : newDocs
         }));
       };
 
@@ -1726,6 +1737,27 @@ const SimpleCloudStorage = {
               <p style={{ color: '#666', marginBottom: '30px', lineHeight: '1.6' }}>
                 Connect to Google Drive to access your strata data from any device.
               </p>
+              
+              <div style={{ textAlign: 'left', background: '#FEF3C7', padding: '20px', borderRadius: '10px', marginBottom: '20px', border: '2px solid #F59E0B' }}>
+                <p style={{ fontWeight: '600', marginBottom: '12px', color: '#92400E', fontSize: '1.05rem' }}>📋 Connection Steps:</p>
+                <ol style={{ marginLeft: '20px', color: '#78350F', lineHeight: '2', fontSize: '0.95rem' }}>
+                  <li>Click "Connect to Google Drive" button below</li>
+                  <li>Enter email: <strong>stratavis4478@gmail.com</strong></li>
+                  <li>Enter the account password</li>
+                  <li>Click <strong>"Continue"</strong> on "Google hasn't verified this app" screen</li>
+                  <li>Click <strong>"Continue"</strong> on "wants access to your Google Account" screen</li>
+                  <li>Done! Your data will load automatically</li>
+                </ol>
+              </div>
+
+              <div style={{ textAlign: 'left', background: '#E0F2FE', padding: '15px', borderRadius: '10px', marginBottom: '30px', border: '2px solid #0EA5E9' }}>
+                <p style={{ fontWeight: '600', color: '#075985', marginBottom: '8px' }}>⏰ About Reconnecting:</p>
+                <p style={{ color: '#0C4A6E', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                  You'll need to reconnect after ~1 hour of inactivity or when you refresh the page. 
+                  This is a Google security feature. Just follow the same steps above to reconnect.
+                </p>
+              </div>
+              
               <div style={{ textAlign: 'left', background: '#F3F4F6', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
                 <p style={{ fontWeight: '600', marginBottom: '10px', color: '#374151' }}>What you'll need:</p>
                 <ul style={{ marginLeft: '20px', color: '#6B7280', lineHeight: '1.8' }}>
@@ -1874,7 +1906,13 @@ const SimpleCloudStorage = {
           )}
 
           {activeTab === 'documents' && (
-            <DocumentsTab data={data} setData={setData} selectedYear={selectedYear} />
+            <DocumentsTab 
+              data={data} 
+              setData={setData} 
+              selectedYear={selectedYear} 
+              permanentDocuments={permanentDocuments}
+              setPermanentDocuments={setPermanentDocuments}
+            />
           )}
         </div>
       );
@@ -2781,17 +2819,19 @@ const SimpleCloudStorage = {
 
     // Documents Tab
     // Documents Tab with Google Drive Integration
-    function DocumentsTab({ data, setData, selectedYear }) {
+    function DocumentsTab({ data, setData, selectedYear, permanentDocuments, setPermanentDocuments }) {
       const [isAuthenticated, setIsAuthenticated] = useState(false);
       const [isUploading, setIsUploading] = useState(false);
       const [driveFiles, setDriveFiles] = useState([]);
-      const [permanentFiles, setPermanentFiles] = useState([]);
       const [storageQuota, setStorageQuota] = useState(null);
       const [showUploadModal, setShowUploadModal] = useState(false);
       const [selectedFile, setSelectedFile] = useState(null);
       const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
       const [docsSortBy, setDocsSortBy] = useState('date'); // date, name, size
       const [permSortBy, setPermSortBy] = useState('year'); // year, name, date, size
+      
+      // Use permanentDocuments from props (managed at app level for global sync)
+      const permanentFiles = permanentDocuments || [];
       const [showRegulationsModal, setShowRegulationsModal] = useState(false);
       const [docNotes, setDocNotes] = useState(data.documentNotes || '');
 
@@ -2851,13 +2891,7 @@ const SimpleCloudStorage = {
         try {
           const files = await GoogleDriveManager.listFiles(selectedYear);
           setDriveFiles(files);
-          
-          // Load permanent records from local storage
-          const permStr = localStorage.getItem('strata-permanent-documents');
-          if (permStr) {
-            const permDocs = JSON.parse(permStr);
-            setPermanentFiles(permDocs);
-          }
+          // Permanent files come from props, managed at app level
         } catch (error) {
           console.error('Error loading files:', error);
           alert('Error loading files. You may need to reconnect to Google Drive.');
@@ -2928,13 +2962,8 @@ const SimpleCloudStorage = {
               size: result.size
             };
 
-            // Save to cloud data instead of localStorage
-            const currentPermanent = data.permanentDocuments || [];
-            setData(prev => ({
-              ...prev,
-              permanentDocuments: [...currentPermanent, permDoc]
-            }));
-            setPermanentFiles([...currentPermanent, permDoc]);
+            // Add to permanent documents (managed at app level)
+            setPermanentDocuments([...permanentFiles, permDoc]);
           }
 
           alert('✅ File uploaded successfully!');
@@ -2967,13 +2996,10 @@ const SimpleCloudStorage = {
             console.warn('File may already be deleted from Drive:', driveError);
           }
 
-          // Remove from permanent records in cloud data
-          const currentPermanent = data.permanentDocuments || [];
-          const updated = currentPermanent.filter(doc => doc.driveFileId !== fileId);
-          if (updated.length !== currentPermanent.length) {
-            // File was in permanent records, update cloud data
-            setData(prev => ({ ...prev, permanentDocuments: updated }));
-            setPermanentFiles(updated);
+          // Remove from permanent records if exists
+          const updated = permanentFiles.filter(doc => doc.driveFileId !== fileId);
+          if (updated.length !== permanentFiles.length) {
+            setPermanentDocuments(updated);
           }
 
           // Reload files list
