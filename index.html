@@ -2840,8 +2840,12 @@ const SimpleCloudStorage = {
         if (isAuthenticated) {
           loadFiles();
           loadStorageQuota();
+          // Load permanent documents from data instead of localStorage
+          if (data.permanentDocuments) {
+            setPermanentFiles(data.permanentDocuments);
+          }
         }
-      }, [isAuthenticated, selectedYear]);
+      }, [isAuthenticated, selectedYear, data.permanentDocuments]);
 
       const loadFiles = async () => {
         try {
@@ -2924,11 +2928,13 @@ const SimpleCloudStorage = {
               size: result.size
             };
 
-            const permStr = localStorage.getItem('strata-permanent-documents');
-            const permDocs = permStr ? JSON.parse(permStr) : [];
-            permDocs.push(permDoc);
-            localStorage.setItem('strata-permanent-documents', JSON.stringify(permDocs));
-            setPermanentFiles(permDocs);
+            // Save to cloud data instead of localStorage
+            const currentPermanent = data.permanentDocuments || [];
+            setData(prev => ({
+              ...prev,
+              permanentDocuments: [...currentPermanent, permDoc]
+            }));
+            setPermanentFiles([...currentPermanent, permDoc]);
           }
 
           alert('✅ File uploaded successfully!');
@@ -2959,16 +2965,14 @@ const SimpleCloudStorage = {
             await GoogleDriveManager.deleteFile(fileId);
           } catch (driveError) {
             console.warn('File may already be deleted from Drive:', driveError);
-            // Continue anyway to clean up local records
           }
 
-          // ALWAYS remove from permanent records if it exists there
-          const permStr = localStorage.getItem('strata-permanent-documents');
-          const permDocs = permStr ? JSON.parse(permStr) : [];
-          const updated = permDocs.filter(doc => doc.driveFileId !== fileId);
-          if (updated.length !== permDocs.length) {
-            // File was in permanent records, update it
-            localStorage.setItem('strata-permanent-documents', JSON.stringify(updated));
+          // Remove from permanent records in cloud data
+          const currentPermanent = data.permanentDocuments || [];
+          const updated = currentPermanent.filter(doc => doc.driveFileId !== fileId);
+          if (updated.length !== currentPermanent.length) {
+            // File was in permanent records, update cloud data
+            setData(prev => ({ ...prev, permanentDocuments: updated }));
             setPermanentFiles(updated);
           }
 
