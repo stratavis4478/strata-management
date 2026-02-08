@@ -2222,11 +2222,20 @@ const SimpleCloudStorage = {
       
       const priorYearActuals = getPriorYearActuals();
       
-      // Standard expense categories
+      // Get prior year's proposed budget (which was column 3 in prior year)
+      const getPriorYearProposed = () => {
+        if (!priorYearData?.budget?.currentYearProposed) return { fees: {}, expenses: {} };
+        return priorYearData.budget.currentYearProposed;
+      };
+      
+      const priorYearProposedFromLastYear = getPriorYearProposed();
+      
+      // Standard expense categories - reduced to only 4
       const standardCategories = [
-        'Property Tax', 'Insurance', 'Electricity', 'Water/Sewer', 'Gas',
-        'Garbage Collection', 'Lawn/Landscaping', 'Snow Removal', 'Repairs/Maintenance',
-        'Property Management', 'Legal/Professional', 'Bank Fees', 'Office Supplies', 'Other'
+        'Hydro',
+        'City Utilities',
+        'Insurance',
+        'Repairs/Maintenance'
       ];
       
       const allCategories = [...standardCategories, ...customCategories];
@@ -2236,11 +2245,7 @@ const SimpleCloudStorage = {
         setData(prev => ({
           ...prev,
           budget: {
-            priorYearProposed: {
-              fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
-              expenses: {},
-              notes: {}
-            },
+            priorYearProposed: priorYearProposedFromLastYear,
             currentYearProposed: {
               fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
               expenses: {},
@@ -2307,7 +2312,8 @@ const SimpleCloudStorage = {
         }
       };
       
-      const priorProposed = data.budget?.priorYearProposed || { fees: {}, expenses: {}, notes: {} };
+      // Use populated prior year data or empty object
+      const priorProposed = data.budget?.priorYearProposed || priorYearProposedFromLastYear || { fees: {}, expenses: {}, notes: {} };
       const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
       // Calculate totals
@@ -2317,9 +2323,9 @@ const SimpleCloudStorage = {
         return { feeTotal, expenseTotal, surplus: feeTotal - expenseTotal };
       };
       
-      const priorProposedTotals = calculateTotals(priorProposed.fees, priorProposed.expenses);
+      const priorProposedTotals = calculateTotals(priorProposed.fees || {}, priorProposed.expenses || {});
       const priorActualsTotals = calculateTotals(priorYearActuals.fees || {}, priorYearActuals.expenses || {});
-      const currentProposedTotals = calculateTotals(currentProposed.fees, currentProposed.expenses);
+      const currentProposedTotals = calculateTotals(currentProposed.fees || {}, currentProposed.expenses || {});
       
       return (
         <>
@@ -2338,15 +2344,15 @@ const SimpleCloudStorage = {
                 <thead>
                   <tr>
                     <th style={{ width: '25%', position: 'sticky', left: 0, background: '#F9FAFB', zIndex: 2 }}>Line Item</th>
-                    <th style={{ width: '20%', background: '#FEF3C7' }}>
+                    <th style={{ width: '20%', background: '#DBEAFE' }}>
                       {priorYear} Budget<br/>
                       <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>Proposed</small>
                     </th>
-                    <th style={{ width: '20%', background: '#DBEAFE' }}>
+                    <th style={{ width: '20%', background: '#BFDBFE' }}>
                       {priorYear} Actual<br/>
                       <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>From Records</small>
                     </th>
-                    <th style={{ width: '20%', background: '#D1FAE5' }}>
+                    <th style={{ width: '20%', background: '#93C5FD' }}>
                       {selectedYear} Budget<br/>
                       <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>Proposed</small>
                     </th>
@@ -2367,23 +2373,23 @@ const SimpleCloudStorage = {
                         <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
                           Unit {unitNum}
                         </td>
-                        <td style={{ background: '#FFFBEB' }}>
+                        <td style={{ background: '#EFF6FF' }}>
                           <input
                             type="number"
                             className="input-field"
-                            value={priorProposed.fees[unit] || ''}
+                            value={priorProposed.fees?.[unit] || ''}
                             onChange={(e) => updateBudgetValue('priorYearProposed', 'fees', unit, e.target.value)}
                             placeholder="0.00"
                           />
                         </td>
-                        <td style={{ background: '#EFF6FF', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
+                        <td style={{ background: '#DBEAFE', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
                           {formatCurrency(priorYearActuals.fees?.[unit] || 0)}
                         </td>
-                        <td style={{ background: '#ECFDF5' }}>
+                        <td style={{ background: '#BFDBFE' }}>
                           <input
                             type="number"
                             className="input-field"
-                            value={currentProposed.fees[unit] || ''}
+                            value={currentProposed.fees?.[unit] || ''}
                             onChange={(e) => updateBudgetValue('currentYearProposed', 'fees', unit, e.target.value)}
                             placeholder="0.00"
                           />
@@ -2403,13 +2409,13 @@ const SimpleCloudStorage = {
                   })}
                   <tr style={{ fontWeight: '700', background: '#F9FAFB' }}>
                     <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL FEES</td>
-                    <td style={{ background: '#FEF3C7', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(priorProposedTotals.feeTotal)}
                     </td>
-                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#BFDBFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(priorActualsTotals.feeTotal)}
                     </td>
-                    <td style={{ background: '#D1FAE5', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#93C5FD', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(currentProposedTotals.feeTotal)}
                     </td>
                     <td></td>
@@ -2443,23 +2449,23 @@ const SimpleCloudStorage = {
                           </button>
                         )}
                       </td>
-                      <td style={{ background: '#FFFBEB' }}>
+                      <td style={{ background: '#EFF6FF' }}>
                         <input
                           type="number"
                           className="input-field"
-                          value={priorProposed.expenses[category] || ''}
+                          value={priorProposed.expenses?.[category] || ''}
                           onChange={(e) => updateBudgetValue('priorYearProposed', 'expenses', category, e.target.value)}
                           placeholder="0.00"
                         />
                       </td>
-                      <td style={{ background: '#EFF6FF', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
+                      <td style={{ background: '#DBEAFE', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
                         {formatCurrency(priorYearActuals.expenses?.[category] || 0)}
                       </td>
-                      <td style={{ background: '#ECFDF5' }}>
+                      <td style={{ background: '#BFDBFE' }}>
                         <input
                           type="number"
                           className="input-field"
-                          value={currentProposed.expenses[category] || ''}
+                          value={currentProposed.expenses?.[category] || ''}
                           onChange={(e) => updateBudgetValue('currentYearProposed', 'expenses', category, e.target.value)}
                           placeholder="0.00"
                         />
@@ -2489,13 +2495,13 @@ const SimpleCloudStorage = {
                   </tr>
                   <tr style={{ fontWeight: '700', background: '#F9FAFB' }}>
                     <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL EXPENSES</td>
-                    <td style={{ background: '#FEF3C7', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(priorProposedTotals.expenseTotal)}
                     </td>
-                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#BFDBFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(priorActualsTotals.expenseTotal)}
                     </td>
-                    <td style={{ background: '#D1FAE5', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                    <td style={{ background: '#93C5FD', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
                       {formatCurrency(currentProposedTotals.expenseTotal)}
                     </td>
                     <td></td>
@@ -2505,7 +2511,7 @@ const SimpleCloudStorage = {
                   <tr style={{ fontWeight: '700', fontSize: '1.1rem', background: '#F3F4F6' }}>
                     <td style={{ position: 'sticky', left: 0, background: '#F3F4F6' }}>SURPLUS / (DEFICIT)</td>
                     <td style={{ 
-                      background: '#FEF3C7', 
+                      background: '#DBEAFE', 
                       textAlign: 'right', 
                       fontFamily: 'Space Mono, monospace',
                       color: priorProposedTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
@@ -2513,7 +2519,7 @@ const SimpleCloudStorage = {
                       {formatCurrency(priorProposedTotals.surplus)}
                     </td>
                     <td style={{ 
-                      background: '#DBEAFE', 
+                      background: '#BFDBFE', 
                       textAlign: 'right', 
                       fontFamily: 'Space Mono, monospace',
                       color: priorActualsTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
@@ -2521,7 +2527,7 @@ const SimpleCloudStorage = {
                       {formatCurrency(priorActualsTotals.surplus)}
                     </td>
                     <td style={{ 
-                      background: '#D1FAE5', 
+                      background: '#93C5FD', 
                       textAlign: 'right', 
                       fontFamily: 'Space Mono, monospace',
                       color: currentProposedTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
