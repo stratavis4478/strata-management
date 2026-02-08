@@ -2194,7 +2194,7 @@ const SimpleCloudStorage = {
       
       // Calculate prior year actual totals from expenses
       const getPriorYearActuals = () => {
-        if (!priorYearData) return {};
+        if (!priorYearData) return { fees: {}, expenses: {} };
         
         const actuals = {
           fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
@@ -2209,13 +2209,18 @@ const SimpleCloudStorage = {
           actuals.fees.unit706 += (month.unit706 || 0);
         });
         
-        // Sum up expenses by category
-        Object.entries(priorYearData.expenses || {}).forEach(([category, months]) => {
-          actuals.expenses[category] = 0;
-          Object.values(months).forEach(amount => {
-            actuals.expenses[category] += (amount || 0);
+        // Sum up expenses by category - fixed to properly iterate through all categories
+        if (priorYearData.expenses) {
+          Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+            actuals.expenses[category] = 0;
+            // monthlyData is an object with keys like 'jan', 'feb', etc.
+            if (monthlyData && typeof monthlyData === 'object') {
+              Object.values(monthlyData).forEach(amount => {
+                actuals.expenses[category] += (parseFloat(amount) || 0);
+              });
+            }
           });
-        });
+        }
         
         return actuals;
       };
@@ -2312,7 +2317,7 @@ const SimpleCloudStorage = {
       // Calculate totals
       const calculateTotals = (fees, expenses) => {
         const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
-        const expenseTotal = Object.values(expenses).reduce((sum, val) => sum + (val || 0), 0);
+        const expenseTotal = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
         return { feeTotal, expenseTotal, surplus: feeTotal - expenseTotal };
       };
       
