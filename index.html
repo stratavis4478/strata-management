@@ -1899,6 +1899,12 @@ const SimpleCloudStorage = {
                 Dashboard
               </button>
               <button 
+                className={`tab-button ${activeTab === 'budgets' ? 'active' : ''}`}
+                onClick={() => setActiveTab('budgets')}
+              >
+                Budgets
+              </button>
+              <button 
                 className={`tab-button ${activeTab === 'fees' ? 'active' : ''}`}
                 onClick={() => setActiveTab('fees')}
               >
@@ -1936,6 +1942,10 @@ const SimpleCloudStorage = {
 
           {activeTab === 'dashboard' && (
             <Dashboard data={data} totals={totals} selectedYear={selectedYear} setData={setData} />
+          )}
+
+          {activeTab === 'budgets' && (
+            <BudgetsTab data={data} allYearsData={allYearsData} selectedYear={selectedYear} setData={setData} />
           )}
 
           {activeTab === 'fees' && (
@@ -2166,6 +2176,399 @@ const SimpleCloudStorage = {
               />
               <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
                 Use this space for CRF balance confirmations, upcoming major expenses, or other financial reminders.
+              </small>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    // Budgets Tab
+    function BudgetsTab({ data, allYearsData, selectedYear, setData }) {
+      const [budgetNotes, setBudgetNotes] = useState(data.budgetTabNotes || '');
+      const [customCategories, setCustomCategories] = useState(data.budgetCustomCategories || []);
+      
+      // Get prior year data
+      const priorYear = selectedYear - 1;
+      const priorYearData = allYearsData?.[priorYear];
+      
+      // Calculate prior year actual totals from expenses
+      const getPriorYearActuals = () => {
+        if (!priorYearData) return {};
+        
+        const actuals = {
+          fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
+          expenses: {}
+        };
+        
+        // Sum up fees from all months
+        Object.values(priorYearData.strataFees || {}).forEach(month => {
+          actuals.fees.unit700 += (month.unit700 || 0);
+          actuals.fees.unit702 += (month.unit702 || 0);
+          actuals.fees.unit704 += (month.unit704 || 0);
+          actuals.fees.unit706 += (month.unit706 || 0);
+        });
+        
+        // Sum up expenses by category
+        Object.entries(priorYearData.expenses || {}).forEach(([category, months]) => {
+          actuals.expenses[category] = 0;
+          Object.values(months).forEach(amount => {
+            actuals.expenses[category] += (amount || 0);
+          });
+        });
+        
+        return actuals;
+      };
+      
+      const priorYearActuals = getPriorYearActuals();
+      
+      // Standard expense categories
+      const standardCategories = [
+        'Property Tax', 'Insurance', 'Electricity', 'Water/Sewer', 'Gas',
+        'Garbage Collection', 'Lawn/Landscaping', 'Snow Removal', 'Repairs/Maintenance',
+        'Property Management', 'Legal/Professional', 'Bank Fees', 'Office Supplies', 'Other'
+      ];
+      
+      const allCategories = [...standardCategories, ...customCategories];
+      
+      // Initialize budget data structure if not exists
+      if (!data.budget) {
+        setData(prev => ({
+          ...prev,
+          budget: {
+            priorYearProposed: {
+              fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
+              expenses: {},
+              notes: {}
+            },
+            currentYearProposed: {
+              fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
+              expenses: {},
+              notes: {}
+            }
+          },
+          budgetCustomCategories: [],
+          budgetTabNotes: ''
+        }));
+      }
+      
+      const updateBudgetValue = (year, type, key, value) => {
+        setData(prev => ({
+          ...prev,
+          budget: {
+            ...prev.budget,
+            [year]: {
+              ...prev.budget[year],
+              [type]: {
+                ...prev.budget[year][type],
+                [key]: parseFloat(value) || 0
+              }
+            }
+          }
+        }));
+      };
+      
+      const updateBudgetNote = (year, key, value) => {
+        setData(prev => ({
+          ...prev,
+          budget: {
+            ...prev.budget,
+            [year]: {
+              ...prev.budget[year],
+              notes: {
+                ...prev.budget[year].notes,
+                [key]: value
+              }
+            }
+          }
+        }));
+      };
+      
+      const addCustomCategory = () => {
+        const categoryName = prompt('Enter new expense category name:');
+        if (categoryName && !allCategories.includes(categoryName)) {
+          const newCategories = [...customCategories, categoryName];
+          setCustomCategories(newCategories);
+          setData(prev => ({
+            ...prev,
+            budgetCustomCategories: newCategories
+          }));
+        }
+      };
+      
+      const removeCustomCategory = (category) => {
+        if (confirm(`Remove "${category}" from budget categories?`)) {
+          const newCategories = customCategories.filter(c => c !== category);
+          setCustomCategories(newCategories);
+          setData(prev => ({
+            ...prev,
+            budgetCustomCategories: newCategories
+          }));
+        }
+      };
+      
+      const priorProposed = data.budget?.priorYearProposed || { fees: {}, expenses: {}, notes: {} };
+      const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
+      
+      // Calculate totals
+      const calculateTotals = (fees, expenses) => {
+        const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
+        const expenseTotal = Object.values(expenses).reduce((sum, val) => sum + (val || 0), 0);
+        return { feeTotal, expenseTotal, surplus: feeTotal - expenseTotal };
+      };
+      
+      const priorProposedTotals = calculateTotals(priorProposed.fees, priorProposed.expenses);
+      const priorActualsTotals = calculateTotals(priorYearActuals.fees || {}, priorYearActuals.expenses || {});
+      const currentProposedTotals = calculateTotals(currentProposed.fees, currentProposed.expenses);
+      
+      return (
+        <>
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">
+                {selectedYear} Budget Comparison
+                <span style={{ fontSize: '0.9rem', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '15px' }}>
+                  Prior Year: {priorYear}
+                </span>
+              </h2>
+            </div>
+            
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table" style={{ minWidth: '900px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '25%', position: 'sticky', left: 0, background: '#F9FAFB', zIndex: 2 }}>Line Item</th>
+                    <th style={{ width: '20%', background: '#FEF3C7' }}>
+                      {priorYear} Budget<br/>
+                      <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>Proposed</small>
+                    </th>
+                    <th style={{ width: '20%', background: '#DBEAFE' }}>
+                      {priorYear} Actual<br/>
+                      <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>From Records</small>
+                    </th>
+                    <th style={{ width: '20%', background: '#D1FAE5' }}>
+                      {selectedYear} Budget<br/>
+                      <small style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>Proposed</small>
+                    </th>
+                    <th style={{ width: '15%' }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* STRATA FEES SECTION */}
+                  <tr style={{ background: '#F3F4F6' }}>
+                    <td colSpan="5" style={{ fontWeight: '700', fontSize: '1.05rem', padding: '15px 20px' }}>
+                      📊 STRATA FEES (Income)
+                    </td>
+                  </tr>
+                  {['unit700', 'unit702', 'unit704', 'unit706'].map(unit => {
+                    const unitNum = unit.replace('unit', '');
+                    return (
+                      <tr key={unit}>
+                        <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
+                          Unit {unitNum}
+                        </td>
+                        <td style={{ background: '#FFFBEB' }}>
+                          <input
+                            type="number"
+                            className="input-field"
+                            value={priorProposed.fees[unit] || ''}
+                            onChange={(e) => updateBudgetValue('priorYearProposed', 'fees', unit, e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td style={{ background: '#EFF6FF', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
+                          {formatCurrency(priorYearActuals.fees?.[unit] || 0)}
+                        </td>
+                        <td style={{ background: '#ECFDF5' }}>
+                          <input
+                            type="number"
+                            className="input-field"
+                            value={currentProposed.fees[unit] || ''}
+                            onChange={(e) => updateBudgetValue('currentYearProposed', 'fees', unit, e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            className="input-field"
+                            value={currentProposed.notes?.[`fee_${unit}`] || ''}
+                            onChange={(e) => updateBudgetNote('currentYearProposed', `fee_${unit}`, e.target.value)}
+                            placeholder="Note..."
+                            style={{ fontSize: '0.85rem' }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ fontWeight: '700', background: '#F9FAFB' }}>
+                    <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL FEES</td>
+                    <td style={{ background: '#FEF3C7', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(priorProposedTotals.feeTotal)}
+                    </td>
+                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(priorActualsTotals.feeTotal)}
+                    </td>
+                    <td style={{ background: '#D1FAE5', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(currentProposedTotals.feeTotal)}
+                    </td>
+                    <td></td>
+                  </tr>
+                  
+                  {/* EXPENSES SECTION */}
+                  <tr style={{ background: '#F3F4F6' }}>
+                    <td colSpan="5" style={{ fontWeight: '700', fontSize: '1.05rem', padding: '15px 20px' }}>
+                      💰 EXPENSES
+                    </td>
+                  </tr>
+                  {allCategories.map(category => (
+                    <tr key={category}>
+                      <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
+                        {category}
+                        {customCategories.includes(category) && (
+                          <button
+                            onClick={() => removeCustomCategory(category)}
+                            style={{
+                              marginLeft: '8px',
+                              padding: '2px 6px',
+                              fontSize: '0.75rem',
+                              background: '#fee2e2',
+                              color: '#991b1b',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </td>
+                      <td style={{ background: '#FFFBEB' }}>
+                        <input
+                          type="number"
+                          className="input-field"
+                          value={priorProposed.expenses[category] || ''}
+                          onChange={(e) => updateBudgetValue('priorYearProposed', 'expenses', category, e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={{ background: '#EFF6FF', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace' }}>
+                        {formatCurrency(priorYearActuals.expenses?.[category] || 0)}
+                      </td>
+                      <td style={{ background: '#ECFDF5' }}>
+                        <input
+                          type="number"
+                          className="input-field"
+                          value={currentProposed.expenses[category] || ''}
+                          onChange={(e) => updateBudgetValue('currentYearProposed', 'expenses', category, e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className="input-field"
+                          value={currentProposed.notes?.[`expense_${category}`] || ''}
+                          onChange={(e) => updateBudgetNote('currentYearProposed', `expense_${category}`, e.target.value)}
+                          placeholder="Note..."
+                          style={{ fontSize: '0.85rem' }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td colSpan="5" style={{ padding: '10px 20px' }}>
+                      <button
+                        className="add-button"
+                        onClick={addCustomCategory}
+                        style={{ fontSize: '0.9rem' }}
+                      >
+                        + Add Custom Category
+                      </button>
+                    </td>
+                  </tr>
+                  <tr style={{ fontWeight: '700', background: '#F9FAFB' }}>
+                    <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL EXPENSES</td>
+                    <td style={{ background: '#FEF3C7', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(priorProposedTotals.expenseTotal)}
+                    </td>
+                    <td style={{ background: '#DBEAFE', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(priorActualsTotals.expenseTotal)}
+                    </td>
+                    <td style={{ background: '#D1FAE5', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                      {formatCurrency(currentProposedTotals.expenseTotal)}
+                    </td>
+                    <td></td>
+                  </tr>
+                  
+                  {/* SURPLUS/DEFICIT */}
+                  <tr style={{ fontWeight: '700', fontSize: '1.1rem', background: '#F3F4F6' }}>
+                    <td style={{ position: 'sticky', left: 0, background: '#F3F4F6' }}>SURPLUS / (DEFICIT)</td>
+                    <td style={{ 
+                      background: '#FEF3C7', 
+                      textAlign: 'right', 
+                      fontFamily: 'Space Mono, monospace',
+                      color: priorProposedTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
+                    }}>
+                      {formatCurrency(priorProposedTotals.surplus)}
+                    </td>
+                    <td style={{ 
+                      background: '#DBEAFE', 
+                      textAlign: 'right', 
+                      fontFamily: 'Space Mono, monospace',
+                      color: priorActualsTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
+                    }}>
+                      {formatCurrency(priorActualsTotals.surplus)}
+                    </td>
+                    <td style={{ 
+                      background: '#D1FAE5', 
+                      textAlign: 'right', 
+                      fontFamily: 'Space Mono, monospace',
+                      color: currentProposedTotals.surplus >= 0 ? 'var(--success)' : 'var(--danger)'
+                    }}>
+                      {formatCurrency(currentProposedTotals.surplus)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            {!priorYearData && (
+              <div style={{ padding: '20px', background: '#FEF3C7', margin: '20px', borderRadius: '8px', border: '1px solid #FCD34D' }}>
+                ℹ️ <strong>Note:</strong> No data found for {priorYear}. The "{priorYear} Actual" column will be empty until you add data for that year.
+              </div>
+            )}
+          </div>
+          
+          <div className="card">
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => {
+              const section = document.getElementById('budget-notes-section');
+              section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            }}>
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>📝 Budget Notes & Assumptions</h3>
+            </div>
+            <div id="budget-notes-section" style={{ padding: '20px', display: 'none' }}>
+              <textarea
+                value={budgetNotes}
+                onChange={(e) => {
+                  setBudgetNotes(e.target.value);
+                  setData(prev => ({ ...prev, budgetTabNotes: e.target.value }));
+                }}
+                placeholder="Document budget assumptions, major changes, fee increase rationale, special projects planned..."
+                style={{
+                  width: '100%',
+                  minHeight: '120px',
+                  padding: '12px',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+              />
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '8px' }}>
+                Use this space to explain budget decisions, document assumptions, or note upcoming major expenses.
               </small>
             </div>
           </div>
