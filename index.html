@@ -1469,8 +1469,12 @@ const SimpleCloudStorage = {
         const years = new Set();
         years.add(currentYear);
         
-        Object.keys(allYearsData).forEach(year => {
-          years.add(parseInt(year));
+        Object.keys(allYearsData).forEach(key => {
+          // Only add valid year numbers, skip 'permanentDocuments' and other non-year keys
+          const year = parseInt(key);
+          if (!isNaN(year) && year >= 2000 && year <= 2100) {
+            years.add(year);
+          }
         });
         
         return Array.from(years).sort((a, b) => b - a);
@@ -2346,16 +2350,19 @@ const SimpleCloudStorage = {
       
       const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
-      // Calculate totals
-      const calculateTotals = (fees, expenses) => {
+      // Calculate totals - ONLY from categories that are actually displayed
+      const calculateTotals = (fees, expenses, categoriesToInclude) => {
         const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
-        const expenseTotal = Object.values(expenses).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+        // Only sum expenses from categories that are visible in the table
+        const expenseTotal = categoriesToInclude.reduce((sum, category) => {
+          return sum + (parseFloat(expenses[category]) || 0);
+        }, 0);
         return { feeTotal, expenseTotal, surplus: feeTotal - expenseTotal };
       };
       
-      const priorProposedTotals = calculateTotals(priorYearProposedBudget.fees || {}, priorYearProposedBudget.expenses || {});
-      const priorActualsTotals = calculateTotals(priorYearActuals.fees || {}, priorYearActuals.expenses || {});
-      const currentProposedTotals = calculateTotals(currentProposed.fees || {}, currentProposed.expenses || {});
+      const priorProposedTotals = calculateTotals(priorYearProposedBudget.fees || {}, priorYearProposedBudget.expenses || {}, allCategories);
+      const priorActualsTotals = calculateTotals(priorYearActuals.fees || {}, priorYearActuals.expenses || {}, allCategories);
+      const currentProposedTotals = calculateTotals(currentProposed.fees || {}, currentProposed.expenses || {}, allCategories);
       
       return (
         <>
