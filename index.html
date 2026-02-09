@@ -1619,7 +1619,11 @@ const SimpleCloudStorage = {
         doc.text(formatCurrency(totals.expenses), 170, yPos, { align: 'right' });
         yPos += 7;
         doc.setFont(undefined, 'bold');
-        doc.setTextColor(totals.surplus >= 0 ? 5, 150, 105 : 220, 38, 38);
+        if (totals.surplus >= 0) {
+          doc.setTextColor(5, 150, 105); // Green
+        } else {
+          doc.setTextColor(220, 38, 38); // Red
+        }
         doc.text(`Net Surplus/(Deficit):`, 25, yPos);
         doc.text(formatCurrency(totals.surplus), 170, yPos, { align: 'right' });
         doc.setTextColor(0, 0, 0);
