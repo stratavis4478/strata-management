@@ -2186,12 +2186,7 @@ const SimpleCloudStorage = {
     // Budgets Tab
     function BudgetsTab({ data, allYearsData, selectedYear, setData }) {
       const [budgetNotes, setBudgetNotes] = useState(data.budgetTabNotes || '');
-      const [customCategories, setCustomCategories] = useState(data.budgetCustomCategories || []);
       const [activeNotePopup, setActiveNotePopup] = useState(null);
-      
-      // Get prior year data
-      const priorYear = selectedYear - 1;
-      const priorYearData = allYearsData?.[priorYear];
       
       // Standard expense categories - MUST match Expenses tab exactly
       const standardCategories = [
@@ -2200,6 +2195,14 @@ const SimpleCloudStorage = {
         'Strata Insurance',
         'Repairs & Maintenance'
       ];
+      
+      // Get custom categories from data, but filter out any that are actually standard
+      const storedCustomCategories = (data.budgetCustomCategories || []).filter(cat => !standardCategories.includes(cat));
+      const [customCategories, setCustomCategories] = useState(storedCustomCategories);
+      
+      // Get prior year data
+      const priorYear = selectedYear - 1;
+      const priorYearData = allYearsData?.[priorYear];
       
       // Calculate prior year actual totals from expenses
       const getPriorYearActuals = () => {
