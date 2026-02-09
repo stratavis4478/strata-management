@@ -2245,26 +2245,17 @@ const SimpleCloudStorage = {
       const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
       // Get ONLY custom categories from prior year expenses (not standard ones)
+      // These are the ONLY custom categories that should appear in this year's budget
       const priorYearCustomCategories = priorYearData?.expenses 
         ? Object.keys(priorYearData.expenses).filter(cat => !standardCategories.includes(cat))
         : [];
       
-      // Merge current custom categories with any new ones from prior year (avoiding duplicates)
-      const mergedCustomCategories = [...new Set([...customCategories, ...priorYearCustomCategories])];
+      // Don't merge with stored custom categories - only use what was in prior year
+      // This ensures custom categories only appear in the year AFTER they were created
+      const customCategoriesToShow = priorYearCustomCategories;
       
-      // Update custom categories state if new ones were found from prior year
-      React.useEffect(() => {
-        if (mergedCustomCategories.length > customCategories.length) {
-          setCustomCategories(mergedCustomCategories);
-          setData(prev => ({
-            ...prev,
-            budgetCustomCategories: mergedCustomCategories
-          }));
-        }
-      }, [priorYearData]);
-      
-      // All categories = standard + custom (custom categories only)
-      const allCategories = [...standardCategories, ...mergedCustomCategories];
+      // All categories = standard + custom from prior year only
+      const allCategories = [...standardCategories, ...customCategoriesToShow];
       
       // Initialize budget data structure if not exists
       if (!data.budget) {
@@ -2277,7 +2268,6 @@ const SimpleCloudStorage = {
               notes: {}
             }
           },
-          budgetCustomCategories: mergedCustomCategories,
           budgetTabNotes: ''
         }));
       }
@@ -2317,23 +2307,40 @@ const SimpleCloudStorage = {
       const addCustomCategory = () => {
         const categoryName = prompt('Enter new expense category name:');
         if (categoryName && !allCategories.includes(categoryName)) {
-          const newCategories = [...mergedCustomCategories, categoryName];
-          setCustomCategories(newCategories);
+          // Add to current year's budget expenses directly
           setData(prev => ({
             ...prev,
-            budgetCustomCategories: newCategories
+            budget: {
+              ...prev.budget,
+              currentYearProposed: {
+                ...prev.budget.currentYearProposed,
+                expenses: {
+                  ...prev.budget.currentYearProposed.expenses,
+                  [categoryName]: 0
+                }
+              }
+            }
           }));
         }
       };
       
       const removeCustomCategory = (category) => {
-        if (confirm(`Remove "${category}" from budget categories?`)) {
-          const newCategories = mergedCustomCategories.filter(c => c !== category);
-          setCustomCategories(newCategories);
-          setData(prev => ({
-            ...prev,
-            budgetCustomCategories: newCategories
-          }));
+        if (confirm(`Remove "${category}" from budget?`)) {
+          // Remove from current year's budget
+          setData(prev => {
+            const newExpenses = { ...prev.budget.currentYearProposed.expenses };
+            delete newExpenses[category];
+            return {
+              ...prev,
+              budget: {
+                ...prev.budget,
+                currentYearProposed: {
+                  ...prev.budget.currentYearProposed,
+                  expenses: newExpenses
+                }
+              }
+            };
+          });
         }
       };
       
