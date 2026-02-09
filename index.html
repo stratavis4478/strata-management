@@ -1586,86 +1586,240 @@ const SimpleCloudStorage = {
         const doc = new jsPDF();
         let yPos = 20;
         
-        // Title
-        doc.setFontSize(18);
-        doc.text('Strata Financial Report', 20, yPos);
-        yPos += 8;
-        doc.setFontSize(10);
-        doc.text('700 Block, Wilson Street, Victoria, BC - Strata Plan VIS4478', 20, yPos);
-        yPos += 6;
+        // Title Page
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        doc.text('Strata Financial Report', 105, yPos, { align: 'center' });
+        yPos += 10;
         doc.setFontSize(12);
-        doc.text(`Year: ${selectedYear}`, 20, yPos);
-        yPos += 15;
+        doc.setFont(undefined, 'normal');
+        doc.text('700 Block, Wilson Street, Victoria, BC', 105, yPos, { align: 'center' });
+        yPos += 6;
+        doc.text('Strata Plan VIS4478', 105, yPos, { align: 'center' });
+        yPos += 6;
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Year: ${selectedYear}`, 105, yPos, { align: 'center' });
+        yPos += 20;
         
-        // Summary Section
+        // Financial Summary Box
+        doc.setFillColor(240, 249, 255);
+        doc.rect(15, yPos, 180, 55, 'F');
+        yPos += 10;
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
         doc.text('Financial Summary', 20, yPos);
         yPos += 8;
         doc.setFontSize(11);
         doc.setFont(undefined, 'normal');
-        doc.text(`Total Strata Fees: ${formatCurrency(totals.income)}`, 30, yPos);
-        yPos += 6;
-        doc.text(`Total Expenses: ${formatCurrency(totals.expenses)}`, 30, yPos);
-        yPos += 6;
-        doc.text(`Net Surplus/(Deficit): ${formatCurrency(totals.surplus)}`, 30, yPos);
-        yPos += 6;
-        doc.text(`CRF Opening Balance: ${formatCurrency(data.crfBaseline || 0)}`, 30, yPos);
-        yPos += 6;
-        doc.text(`CRF Projected Closing: ${formatCurrency((data.crfBaseline || 0) + totals.surplus)}`, 30, yPos);
-        yPos += 15;
-
-        // Strata Fees Section
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.setFontSize(14);
+        doc.text(`Total Strata Fees:`, 25, yPos);
+        doc.text(formatCurrency(totals.income), 170, yPos, { align: 'right' });
+        yPos += 7;
+        doc.text(`Total Expenses:`, 25, yPos);
+        doc.text(formatCurrency(totals.expenses), 170, yPos, { align: 'right' });
+        yPos += 7;
         doc.setFont(undefined, 'bold');
-        doc.text('Strata Fees by Unit', 20, yPos);
-        yPos += 8;
-        doc.setFontSize(9);
+        doc.setTextColor(totals.surplus >= 0 ? 5, 150, 105 : 220, 38, 38);
+        doc.text(`Net Surplus/(Deficit):`, 25, yPos);
+        doc.text(formatCurrency(totals.surplus), 170, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        yPos += 7;
         doc.setFont(undefined, 'normal');
-        
-        MONTHS.forEach(month => {
-          if (yPos > 270) {
-            doc.addPage();
-            yPos = 20;
-          }
-          const fees = data.strataFees[month];
-          const total = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
-          if (total > 0) {
-            doc.text(`${month}: 700=${formatCurrency(fees.unit700)} 702=${formatCurrency(fees.unit702)} 704=${formatCurrency(fees.unit704)} 706=${formatCurrency(fees.unit706)} Total=${formatCurrency(total)}`, 30, yPos);
-            yPos += 5;
-          }
-        });
+        doc.text(`CRF Opening Balance:`, 25, yPos);
+        doc.text(formatCurrency(data.crfBaseline || 0), 170, yPos, { align: 'right' });
+        yPos += 7;
+        doc.text(`CRF Projected Closing:`, 25, yPos);
+        doc.text(formatCurrency((data.crfBaseline || 0) + totals.surplus), 170, yPos, { align: 'right' });
+        yPos += 20;
 
+        // NEW PAGE - Strata Fees Table
+        doc.addPage();
+        yPos = 20;
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('Strata Fees by Month', 20, yPos);
         yPos += 10;
-
-        // Expenses Section
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = 20;
-        }
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('Expenses by Category', 20, yPos);
+        
+        // Table headers
+        doc.setFontSize(10);
+        doc.setFillColor(147, 197, 253);
+        doc.rect(15, yPos - 5, 180, 8, 'F');
+        doc.text('Month', 20, yPos);
+        doc.text('Unit 700', 60, yPos, { align: 'right' });
+        doc.text('Unit 702', 90, yPos, { align: 'right' });
+        doc.text('Unit 704', 120, yPos, { align: 'right' });
+        doc.text('Unit 706', 150, yPos, { align: 'right' });
+        doc.text('Total', 180, yPos, { align: 'right' });
         yPos += 8;
-        doc.setFontSize(9);
+        
         doc.setFont(undefined, 'normal');
-
+        let feeGrandTotal = 0;
+        MONTHS.forEach(month => {
+          const fees = data.strataFees[month];
+          const monthTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
+          feeGrandTotal += monthTotal;
+          
+          doc.text(month, 20, yPos);
+          doc.text(formatCurrency(fees.unit700 || 0), 60, yPos, { align: 'right' });
+          doc.text(formatCurrency(fees.unit702 || 0), 90, yPos, { align: 'right' });
+          doc.text(formatCurrency(fees.unit704 || 0), 120, yPos, { align: 'right' });
+          doc.text(formatCurrency(fees.unit706 || 0), 150, yPos, { align: 'right' });
+          doc.text(formatCurrency(monthTotal), 180, yPos, { align: 'right' });
+          yPos += 6;
+        });
+        
+        // Total row
+        doc.setFont(undefined, 'bold');
+        doc.setFillColor(249, 250, 251);
+        doc.rect(15, yPos - 3, 180, 8, 'F');
+        doc.text('TOTAL', 20, yPos);
+        doc.text(formatCurrency(feeGrandTotal), 180, yPos, { align: 'right' });
+        
+        // NEW PAGE - Expenses Table
+        doc.addPage();
+        yPos = 20;
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(16);
+        doc.text('Expenses by Category', 20, yPos);
+        yPos += 10;
+        
         const allCategories = [...EXPENSE_CATEGORIES, ...(data.customExpenses || [])];
+        doc.setFontSize(10);
+        
         allCategories.forEach(category => {
           if (yPos > 270) {
             doc.addPage();
             yPos = 20;
           }
-          const total = Object.values(data.expenses[category.name] || {}).reduce((sum, val) => sum + (val || 0), 0);
-          if (total > 0) {
-            doc.text(`${category.name}: ${formatCurrency(total)}`, 30, yPos);
-            yPos += 5;
-          }
+          
+          // Category header
+          doc.setFillColor(147, 197, 253);
+          doc.rect(15, yPos - 5, 180, 7, 'F');
+          doc.setFont(undefined, 'bold');
+          doc.text(category.name, 20, yPos);
+          yPos += 8;
+          
+          // Month totals
+          doc.setFont(undefined, 'normal');
+          let categoryTotal = 0;
+          MONTHS.forEach(month => {
+            const amount = data.expenses[category.name]?.[month] || 0;
+            categoryTotal += amount;
+            if (amount > 0) {
+              doc.text(`  ${month}:`, 25, yPos);
+              doc.text(formatCurrency(amount), 180, yPos, { align: 'right' });
+              yPos += 5;
+            }
+          });
+          
+          // Category total
+          doc.setFont(undefined, 'bold');
+          doc.setFillColor(249, 250, 251);
+          doc.rect(15, yPos - 2, 180, 6, 'F');
+          doc.text(`${category.name} Total:`, 25, yPos);
+          doc.text(formatCurrency(categoryTotal), 180, yPos, { align: 'right' });
+          yPos += 10;
         });
+
+        // Grand total for expenses
+        if (yPos > 260) {
+          doc.addPage();
+          yPos = 20;
+        }
+        doc.setFillColor(59, 130, 246);
+        doc.rect(15, yPos - 5, 180, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(12);
+        doc.text('TOTAL EXPENSES:', 25, yPos);
+        doc.text(formatCurrency(totals.expenses), 180, yPos, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+
+        // NEW PAGE - Budget (if exists)
+        if (data.budget?.currentYearProposed) {
+          doc.addPage();
+          yPos = 20;
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.text(`${selectedYear} Budget Comparison`, 20, yPos);
+          yPos += 10;
+          
+          // Get prior year data for budget
+          const priorYear = selectedYear - 1;
+          const priorYearData = allYearsData?.[priorYear];
+          const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {} };
+          
+          // Calculate prior year actuals
+          const priorYearActuals = { fees: {}, expenses: {} };
+          if (priorYearData) {
+            Object.values(priorYearData.strataFees || {}).forEach(month => {
+              priorYearActuals.fees.unit700 = (priorYearActuals.fees.unit700 || 0) + (month.unit700 || 0);
+              priorYearActuals.fees.unit702 = (priorYearActuals.fees.unit702 || 0) + (month.unit702 || 0);
+              priorYearActuals.fees.unit704 = (priorYearActuals.fees.unit704 || 0) + (month.unit704 || 0);
+              priorYearActuals.fees.unit706 = (priorYearActuals.fees.unit706 || 0) + (month.unit706 || 0);
+            });
+            
+            if (priorYearData.expenses) {
+              Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+                let categoryTotal = 0;
+                if (monthlyData && typeof monthlyData === 'object') {
+                  Object.values(monthlyData).forEach(amount => {
+                    categoryTotal += (parseFloat(amount) || 0);
+                  });
+                }
+                priorYearActuals.expenses[category] = categoryTotal;
+              });
+            }
+          }
+          
+          // Budget table headers
+          doc.setFontSize(9);
+          doc.setFillColor(147, 197, 253);
+          doc.rect(15, yPos - 4, 180, 7, 'F');
+          doc.text('Line Item', 20, yPos);
+          doc.text(`${priorYear} Budget`, 85, yPos, { align: 'right' });
+          doc.text(`${priorYear} Actual`, 115, yPos, { align: 'right' });
+          doc.text(`${selectedYear} Budget`, 180, yPos, { align: 'right' });
+          yPos += 8;
+          
+          // Fees section
+          doc.setFont(undefined, 'bold');
+          doc.text('STRATA FEES', 20, yPos);
+          yPos += 6;
+          doc.setFont(undefined, 'normal');
+          
+          ['unit700', 'unit702', 'unit704', 'unit706'].forEach(unit => {
+            const unitNum = unit.replace('unit', '');
+            doc.text(`Unit ${unitNum}`, 25, yPos);
+            doc.text(formatCurrency(priorYearProposedBudget.fees?.[unit] || 0), 85, yPos, { align: 'right' });
+            doc.text(formatCurrency(priorYearActuals.fees?.[unit] || 0), 115, yPos, { align: 'right' });
+            doc.text(formatCurrency(data.budget.currentYearProposed.fees?.[unit] || 0), 180, yPos, { align: 'right' });
+            yPos += 5;
+          });
+          
+          // Expenses section
+          yPos += 5;
+          doc.setFont(undefined, 'bold');
+          doc.text('EXPENSES', 20, yPos);
+          yPos += 6;
+          doc.setFont(undefined, 'normal');
+          
+          const budgetCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance', 'Repairs & Maintenance'];
+          const priorYearCustomCats = priorYearData?.expenses ? Object.keys(priorYearData.expenses).filter(cat => !budgetCategories.includes(cat)) : [];
+          const allBudgetCategories = [...budgetCategories, ...priorYearCustomCats];
+          
+          allBudgetCategories.forEach(category => {
+            if (yPos > 275) {
+              doc.addPage();
+              yPos = 20;
+            }
+            const catName = category.length > 25 ? category.substring(0, 25) + '...' : category;
+            doc.text(catName, 25, yPos);
+            doc.text(formatCurrency(priorYearProposedBudget.expenses?.[category] || 0), 85, yPos, { align: 'right' });
+            doc.text(formatCurrency(priorYearActuals.expenses?.[category] || 0), 115, yPos, { align: 'right' });
+            doc.text(formatCurrency(data.budget.currentYearProposed.expenses?.[category] || 0), 180, yPos, { align: 'right' });
+            yPos += 5;
+          });
+        }
 
         doc.save(`strata-report-${selectedYear}.pdf`);
       };
@@ -1673,7 +1827,7 @@ const SimpleCloudStorage = {
       const exportToExcel = () => {
         const wb = XLSX.utils.book_new();
 
-        // Summary sheet
+        // Summary sheet with totals
         const summaryData = [
           ['Strata Financial Summary', selectedYear],
           ['700 Block, Wilson Street, Victoria, BC'],
@@ -1688,60 +1842,163 @@ const SimpleCloudStorage = {
           ['CRF Projected Closing', (data.crfBaseline || 0) + totals.surplus]
         ];
         const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
-        // Set column widths for Summary sheet
-        ws1['!cols'] = [
-          { wch: 40 },  // First column - wide for labels with text wrapping
-          { wch: 15 }   // Second column - values
-        ];
+        ws1['!cols'] = [{ wch: 40 }, { wch: 15 }];
         XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
-        // Strata Fees sheet
-        const feesData = [['Month', 'Unit 700', 'Unit 702', 'Unit 704', 'Unit 706', 'Total', 'Notes']];
+        // Strata Fees sheet with monthly totals and grand total
+        const feesData = [['Month', 'Unit 700', 'Unit 702', 'Unit 704', 'Unit 706', 'Monthly Total']];
+        let unit700Total = 0, unit702Total = 0, unit704Total = 0, unit706Total = 0, grandTotal = 0;
+        
         MONTHS.forEach(month => {
           const fees = data.strataFees[month];
-          const total = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
-          const notes = data.feeNotes?.[month] || '';
-          feesData.push([month, fees.unit700, fees.unit702, fees.unit704, fees.unit706, total, notes]);
+          const monthTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
+          unit700Total += fees.unit700 || 0;
+          unit702Total += fees.unit702 || 0;
+          unit704Total += fees.unit704 || 0;
+          unit706Total += fees.unit706 || 0;
+          grandTotal += monthTotal;
+          feesData.push([month, fees.unit700 || 0, fees.unit702 || 0, fees.unit704 || 0, fees.unit706 || 0, monthTotal]);
         });
+        
+        // Add totals row
+        feesData.push(['TOTAL', unit700Total, unit702Total, unit704Total, unit706Total, grandTotal]);
+        
         const ws2 = XLSX.utils.aoa_to_sheet(feesData);
-        // Set column widths for Strata Fees sheet
         ws2['!cols'] = [
           { wch: 15 },  // Month
           { wch: 12 },  // Unit 700
           { wch: 12 },  // Unit 702
           { wch: 12 },  // Unit 704
           { wch: 12 },  // Unit 706
-          { wch: 12 },  // Total
-          { wch: 30 }   // Notes - wider
+          { wch: 15 }   // Total
         ];
         XLSX.utils.book_append_sheet(wb, ws2, 'Strata Fees');
 
-        // Expenses sheet
-        const expensesHeader = ['Category', 'Frequency', ...MONTHS, 'Total', 'Notes'];
+        // Expenses sheet with monthly and category totals
+        const expensesHeader = ['Month', ...EXPENSE_CATEGORIES.map(c => c.name), ...(data.customExpenses || []).map(c => c.name), 'Monthly Total'];
         const expensesData = [expensesHeader];
+        
         const allCategories = [...EXPENSE_CATEGORIES, ...(data.customExpenses || [])];
-        allCategories.forEach(category => {
-          const row = [category.name, category.frequency];
-          let rowTotal = 0;
-          MONTHS.forEach(month => {
+        const categoryTotals = {};
+        allCategories.forEach(cat => categoryTotals[cat.name] = 0);
+        
+        MONTHS.forEach(month => {
+          const row = [month];
+          let monthTotal = 0;
+          
+          allCategories.forEach(category => {
             const amount = data.expenses[category.name]?.[month] || 0;
             row.push(amount);
-            rowTotal += amount;
+            monthTotal += amount;
+            categoryTotals[category.name] += amount;
           });
-          row.push(rowTotal);
-          row.push(data.expenseNotes?.[category.name] || '');
+          
+          row.push(monthTotal);
           expensesData.push(row);
         });
+        
+        // Add totals row
+        const totalsRow = ['TOTAL'];
+        let expensesGrandTotal = 0;
+        allCategories.forEach(category => {
+          totalsRow.push(categoryTotals[category.name]);
+          expensesGrandTotal += categoryTotals[category.name];
+        });
+        totalsRow.push(expensesGrandTotal);
+        expensesData.push(totalsRow);
+        
         const ws3 = XLSX.utils.aoa_to_sheet(expensesData);
-        // Set column widths for Expenses sheet
         ws3['!cols'] = [
-          { wch: 35 },  // Category - extra wide for long names
-          { wch: 12 },  // Frequency
-          ...Array(12).fill({ wch: 10 }),  // 12 months columns
-          { wch: 12 },  // Total
-          { wch: 30 }   // Notes - wider
+          { wch: 15 },  // Month
+          ...allCategories.map(() => ({ wch: 18 })),  // Category columns
+          { wch: 15 }   // Total
         ];
         XLSX.utils.book_append_sheet(wb, ws3, 'Expenses');
+
+        // Budget sheet (if exists)
+        if (data.budget?.currentYearProposed) {
+          const priorYear = selectedYear - 1;
+          const priorYearData = allYearsData?.[priorYear];
+          const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {} };
+          
+          // Calculate prior year actuals
+          const priorYearActuals = { fees: {}, expenses: {} };
+          if (priorYearData) {
+            Object.values(priorYearData.strataFees || {}).forEach(month => {
+              priorYearActuals.fees.unit700 = (priorYearActuals.fees.unit700 || 0) + (month.unit700 || 0);
+              priorYearActuals.fees.unit702 = (priorYearActuals.fees.unit702 || 0) + (month.unit702 || 0);
+              priorYearActuals.fees.unit704 = (priorYearActuals.fees.unit704 || 0) + (month.unit704 || 0);
+              priorYearActuals.fees.unit706 = (priorYearActuals.fees.unit706 || 0) + (month.unit706 || 0);
+            });
+            
+            if (priorYearData.expenses) {
+              Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+                let categoryTotal = 0;
+                if (monthlyData && typeof monthlyData === 'object') {
+                  Object.values(monthlyData).forEach(amount => {
+                    categoryTotal += (parseFloat(amount) || 0);
+                  });
+                }
+                priorYearActuals.expenses[category] = categoryTotal;
+              });
+            }
+          }
+          
+          const budgetData = [
+            [`${selectedYear} Budget Comparison`],
+            [],
+            ['Line Item', `${priorYear} Budget Proposed`, `${priorYear} Actual`, `${selectedYear} Budget Proposed`],
+            [],
+            ['STRATA FEES'],
+            ['Unit 700', priorYearProposedBudget.fees?.unit700 || 0, priorYearActuals.fees?.unit700 || 0, data.budget.currentYearProposed.fees?.unit700 || 0],
+            ['Unit 702', priorYearProposedBudget.fees?.unit702 || 0, priorYearActuals.fees?.unit702 || 0, data.budget.currentYearProposed.fees?.unit702 || 0],
+            ['Unit 704', priorYearProposedBudget.fees?.unit704 || 0, priorYearActuals.fees?.unit704 || 0, data.budget.currentYearProposed.fees?.unit704 || 0],
+            ['Unit 706', priorYearProposedBudget.fees?.unit706 || 0, priorYearActuals.fees?.unit706 || 0, data.budget.currentYearProposed.fees?.unit706 || 0],
+            []
+          ];
+          
+          // Calculate fee totals
+          const priorBudgetFeesTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0);
+          const priorActualFeesTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0);
+          const currentBudgetFeesTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0);
+          
+          budgetData.push(['TOTAL FEES', priorBudgetFeesTotal, priorActualFeesTotal, currentBudgetFeesTotal]);
+          budgetData.push([]);
+          budgetData.push(['EXPENSES']);
+          
+          // Add expense categories
+          const budgetCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance', 'Repairs & Maintenance'];
+          const priorYearCustomCats = priorYearData?.expenses ? Object.keys(priorYearData.expenses).filter(cat => !budgetCategories.includes(cat)) : [];
+          const allBudgetCategories = [...budgetCategories, ...priorYearCustomCats];
+          
+          let priorBudgetExpTotal = 0, priorActualExpTotal = 0, currentBudgetExpTotal = 0;
+          
+          allBudgetCategories.forEach(category => {
+            const priorBudget = priorYearProposedBudget.expenses?.[category] || 0;
+            const priorActual = priorYearActuals.expenses?.[category] || 0;
+            const currentBudget = data.budget.currentYearProposed.expenses?.[category] || 0;
+            
+            priorBudgetExpTotal += priorBudget;
+            priorActualExpTotal += priorActual;
+            currentBudgetExpTotal += currentBudget;
+            
+            budgetData.push([category, priorBudget, priorActual, currentBudget]);
+          });
+          
+          budgetData.push([]);
+          budgetData.push(['TOTAL EXPENSES', priorBudgetExpTotal, priorActualExpTotal, currentBudgetExpTotal]);
+          budgetData.push([]);
+          budgetData.push(['SURPLUS / (DEFICIT)', priorBudgetFeesTotal - priorBudgetExpTotal, priorActualFeesTotal - priorActualExpTotal, currentBudgetFeesTotal - currentBudgetExpTotal]);
+          
+          const ws_budget = XLSX.utils.aoa_to_sheet(budgetData);
+          ws_budget['!cols'] = [
+            { wch: 40 },  // Line Item
+            { wch: 20 },  // Prior Budget
+            { wch: 20 },  // Prior Actual
+            { wch: 20 }   // Current Budget
+          ];
+          XLSX.utils.book_append_sheet(wb, ws_budget, 'Budget');
+        }
 
         // Insurance sheet
         const insuranceData = [
@@ -1756,11 +2013,7 @@ const SimpleCloudStorage = {
           ['Deductible', data.insurance.deductible]
         ];
         const ws4 = XLSX.utils.aoa_to_sheet(insuranceData);
-        // Set column widths for Insurance sheet
-        ws4['!cols'] = [
-          { wch: 35 },  // Field names - wide
-          { wch: 20 }   // Values
-        ];
+        ws4['!cols'] = [{ wch: 35 }, { wch: 20 }];
         XLSX.utils.book_append_sheet(wb, ws4, 'Insurance');
 
         XLSX.writeFile(wb, `strata-data-${selectedYear}.xlsx`);
@@ -2087,57 +2340,6 @@ const SimpleCloudStorage = {
                 </div>
                 <div style={{ marginTop: '15px', padding: '12px', background: 'white', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                   💡 <strong>Tip:</strong> At year-end, copy the "Projected Closing Balance" and paste it as next year's "Opening Balance" to maintain continuity.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-header">
-              <h2 className="card-title">Annual Overview - Fees vs Expenses</h2>
-            </div>
-            <div style={{ padding: '40px 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '300px', gap: '40px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ 
-                    width: '100%',
-                    maxWidth: '200px',
-                    height: `${totals.income > 0 ? Math.min((totals.income / Math.max(totals.income, totals.expenses)) * 100, 100) : 0}%`,
-                    minHeight: totals.income > 0 ? '40px' : '0',
-                    background: 'linear-gradient(180deg, var(--success) 0%, #059669 100%)',
-                    borderRadius: '8px 8px 0 0',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'center',
-                    paddingTop: '10px',
-                    transition: 'all 0.5s ease'
-                  }}>
-                    <strong style={{ color: 'white', fontSize: '1.2rem' }}>{formatCurrency(totals.income)}</strong>
-                  </div>
-                  <div style={{ marginTop: '15px', fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                    Total Fees
-                  </div>
-                </div>
-                
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ 
-                    width: '100%',
-                    maxWidth: '200px',
-                    height: `${totals.expenses > 0 ? Math.min((totals.expenses / Math.max(totals.income, totals.expenses)) * 100, 100) : 0}%`,
-                    minHeight: totals.expenses > 0 ? '40px' : '0',
-                    background: 'linear-gradient(180deg, var(--danger) 0%, #dc2626 100%)',
-                    borderRadius: '8px 8px 0 0',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'center',
-                    paddingTop: '10px',
-                    transition: 'all 0.5s ease'
-                  }}>
-                    <strong style={{ color: 'white', fontSize: '1.2rem' }}>{formatCurrency(totals.expenses)}</strong>
-                  </div>
-                  <div style={{ marginTop: '15px', fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                    Total Expenses
-                  </div>
                 </div>
               </div>
             </div>
