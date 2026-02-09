@@ -2187,6 +2187,7 @@ const SimpleCloudStorage = {
     function BudgetsTab({ data, allYearsData, selectedYear, setData }) {
       const [budgetNotes, setBudgetNotes] = useState(data.budgetTabNotes || '');
       const [customCategories, setCustomCategories] = useState(data.budgetCustomCategories || []);
+      const [activeNotePopup, setActiveNotePopup] = useState(null);
       
       // Get prior year data
       const priorYear = selectedYear - 1;
@@ -2209,16 +2210,17 @@ const SimpleCloudStorage = {
           actuals.fees.unit706 += (month.unit706 || 0);
         });
         
-        // Sum up expenses by category - fixed to properly iterate through all categories
+        // Sum up expenses by category - iterate through ALL categories in prior year expenses
         if (priorYearData.expenses) {
           Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
-            actuals.expenses[category] = 0;
+            let categoryTotal = 0;
             // monthlyData is an object with keys like 'jan', 'feb', etc.
             if (monthlyData && typeof monthlyData === 'object') {
               Object.values(monthlyData).forEach(amount => {
-                actuals.expenses[category] += (parseFloat(amount) || 0);
+                categoryTotal += (parseFloat(amount) || 0);
               });
             }
+            actuals.expenses[category] = categoryTotal;
           });
         }
         
@@ -2239,7 +2241,23 @@ const SimpleCloudStorage = {
         'Repairs/Maintenance'
       ];
       
-      const allCategories = [...standardCategories, ...customCategories];
+      // Get all custom categories from prior year expenses that aren't in standard list
+      const priorYearCustomCategories = priorYearData?.expenses 
+        ? Object.keys(priorYearData.expenses).filter(cat => !standardCategories.includes(cat))
+        : [];
+      
+      // Merge current custom categories with any new ones from prior year
+      const allCustomCategories = [...new Set([...customCategories, ...priorYearCustomCategories])];
+      const allCategories = [...standardCategories, ...allCustomCategories];
+      
+      // Update custom categories if new ones were found
+      if (allCustomCategories.length > customCategories.length) {
+        setCustomCategories(allCustomCategories);
+        setData(prev => ({
+          ...prev,
+          budgetCustomCategories: allCustomCategories
+        }));
+      }
       
       // Initialize budget data structure if not exists
       if (!data.budget) {
@@ -2252,7 +2270,7 @@ const SimpleCloudStorage = {
               notes: {}
             }
           },
-          budgetCustomCategories: [],
+          budgetCustomCategories: allCustomCategories,
           budgetTabNotes: ''
         }));
       }
@@ -2292,7 +2310,7 @@ const SimpleCloudStorage = {
       const addCustomCategory = () => {
         const categoryName = prompt('Enter new expense category name:');
         if (categoryName && !allCategories.includes(categoryName)) {
-          const newCategories = [...customCategories, categoryName];
+          const newCategories = [...allCustomCategories, categoryName];
           setCustomCategories(newCategories);
           setData(prev => ({
             ...prev,
@@ -2303,7 +2321,7 @@ const SimpleCloudStorage = {
       
       const removeCustomCategory = (category) => {
         if (confirm(`Remove "${category}" from budget categories?`)) {
-          const newCategories = customCategories.filter(c => c !== category);
+          const newCategories = allCustomCategories.filter(c => c !== category);
           setCustomCategories(newCategories);
           setData(prev => ({
             ...prev,
@@ -2337,7 +2355,7 @@ const SimpleCloudStorage = {
               </h2>
             </div>
             
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', position: 'relative' }}>
               <table className="data-table" style={{ minWidth: '900px' }}>
                 <thead>
                   <tr>
@@ -2366,6 +2384,8 @@ const SimpleCloudStorage = {
                   </tr>
                   {['unit700', 'unit702', 'unit704', 'unit706'].map(unit => {
                     const unitNum = unit.replace('unit', '');
+                    const noteKey = `fee_${unit}`;
+                    const hasNote = currentProposed.notes?.[noteKey];
                     return (
                       <tr key={unit}>
                         <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
@@ -2386,15 +2406,69 @@ const SimpleCloudStorage = {
                             placeholder="0.00"
                           />
                         </td>
-                        <td style={{ background: 'white' }}>
-                          <input
-                            type="text"
-                            className="input-field"
-                            value={currentProposed.notes?.[`fee_${unit}`] || ''}
-                            onChange={(e) => updateBudgetNote('currentYearProposed', `fee_${unit}`, e.target.value)}
-                            placeholder="Note..."
-                            style={{ fontSize: '0.85rem' }}
-                          />
+                        <td style={{ background: 'white', textAlign: 'center', position: 'relative' }}>
+                          <button
+                            onClick={() => setActiveNotePopup(activeNotePopup === noteKey ? null : noteKey)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '0.85rem',
+                              background: hasNote ? '#DBEAFE' : '#F3F4F6',
+                              color: hasNote ? '#1E40AF' : '#6B7280',
+                              border: hasNote ? '1px solid #93C5FD' : '1px solid #D1D5DB',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: hasNote ? '600' : 'normal'
+                            }}
+                          >
+                            {hasNote ? '📝' : '➕'} Note
+                          </button>
+                          {activeNotePopup === noteKey && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              right: 0,
+                              marginTop: '5px',
+                              background: 'white',
+                              border: '2px solid #3B82F6',
+                              borderRadius: '8px',
+                              padding: '10px',
+                              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                              zIndex: 1000,
+                              minWidth: '250px'
+                            }}>
+                              <textarea
+                                value={currentProposed.notes?.[noteKey] || ''}
+                                onChange={(e) => updateBudgetNote('currentYearProposed', noteKey, e.target.value)}
+                                placeholder="Add note..."
+                                style={{
+                                  width: '100%',
+                                  minHeight: '60px',
+                                  padding: '8px',
+                                  border: '1px solid #E5E7EB',
+                                  borderRadius: '4px',
+                                  fontSize: '0.9rem',
+                                  fontFamily: 'inherit',
+                                  resize: 'vertical'
+                                }}
+                              />
+                              <button
+                                onClick={() => setActiveNotePopup(null)}
+                                style={{
+                                  marginTop: '8px',
+                                  padding: '4px 12px',
+                                  fontSize: '0.85rem',
+                                  background: '#3B82F6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  width: '100%'
+                                }}
+                              >
+                                Close
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -2419,55 +2493,114 @@ const SimpleCloudStorage = {
                       💰 EXPENSES
                     </td>
                   </tr>
-                  {allCategories.map(category => (
-                    <tr key={category}>
-                      <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
-                        {category}
-                        {customCategories.includes(category) && (
+                  {allCategories.map(category => {
+                    const noteKey = `expense_${category}`;
+                    const hasNote = currentProposed.notes?.[noteKey];
+                    const isCustom = !standardCategories.includes(category);
+                    return (
+                      <tr key={category}>
+                        <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
+                          {category}
+                          {isCustom && (
+                            <button
+                              onClick={() => removeCustomCategory(category)}
+                              style={{
+                                marginLeft: '8px',
+                                padding: '2px 6px',
+                                fontSize: '0.75rem',
+                                background: '#fee2e2',
+                                color: '#991b1b',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
+                        <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
+                          {formatCurrency(priorYearProposedBudget.expenses?.[category] || 0)}
+                        </td>
+                        <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
+                          {formatCurrency(priorYearActuals.expenses?.[category] || 0)}
+                        </td>
+                        <td style={{ background: 'white' }}>
+                          <input
+                            type="number"
+                            className="input-field"
+                            value={currentProposed.expenses?.[category] || ''}
+                            onChange={(e) => updateBudgetValue('currentYearProposed', 'expenses', category, e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td style={{ background: 'white', textAlign: 'center', position: 'relative' }}>
                           <button
-                            onClick={() => removeCustomCategory(category)}
+                            onClick={() => setActiveNotePopup(activeNotePopup === noteKey ? null : noteKey)}
                             style={{
-                              marginLeft: '8px',
-                              padding: '2px 6px',
-                              fontSize: '0.75rem',
-                              background: '#fee2e2',
-                              color: '#991b1b',
-                              border: 'none',
+                              padding: '4px 8px',
+                              fontSize: '0.85rem',
+                              background: hasNote ? '#DBEAFE' : '#F3F4F6',
+                              color: hasNote ? '#1E40AF' : '#6B7280',
+                              border: hasNote ? '1px solid #93C5FD' : '1px solid #D1D5DB',
                               borderRadius: '4px',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              fontWeight: hasNote ? '600' : 'normal'
                             }}
                           >
-                            ✕
+                            {hasNote ? '📝' : '➕'} Note
                           </button>
-                        )}
-                      </td>
-                      <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
-                        {formatCurrency(priorYearProposedBudget.expenses?.[category] || 0)}
-                      </td>
-                      <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
-                        {formatCurrency(priorYearActuals.expenses?.[category] || 0)}
-                      </td>
-                      <td style={{ background: 'white' }}>
-                        <input
-                          type="number"
-                          className="input-field"
-                          value={currentProposed.expenses?.[category] || ''}
-                          onChange={(e) => updateBudgetValue('currentYearProposed', 'expenses', category, e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td style={{ background: 'white' }}>
-                        <input
-                          type="text"
-                          className="input-field"
-                          value={currentProposed.notes?.[`expense_${category}`] || ''}
-                          onChange={(e) => updateBudgetNote('currentYearProposed', `expense_${category}`, e.target.value)}
-                          placeholder="Note..."
-                          style={{ fontSize: '0.85rem' }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                          {activeNotePopup === noteKey && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              right: 0,
+                              marginTop: '5px',
+                              background: 'white',
+                              border: '2px solid #3B82F6',
+                              borderRadius: '8px',
+                              padding: '10px',
+                              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                              zIndex: 1000,
+                              minWidth: '250px'
+                            }}>
+                              <textarea
+                                value={currentProposed.notes?.[noteKey] || ''}
+                                onChange={(e) => updateBudgetNote('currentYearProposed', noteKey, e.target.value)}
+                                placeholder="Add note..."
+                                style={{
+                                  width: '100%',
+                                  minHeight: '60px',
+                                  padding: '8px',
+                                  border: '1px solid #E5E7EB',
+                                  borderRadius: '4px',
+                                  fontSize: '0.9rem',
+                                  fontFamily: 'inherit',
+                                  resize: 'vertical'
+                                }}
+                              />
+                              <button
+                                onClick={() => setActiveNotePopup(null)}
+                                style={{
+                                  marginTop: '8px',
+                                  padding: '4px 12px',
+                                  fontSize: '0.85rem',
+                                  background: '#3B82F6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  width: '100%'
+                                }}
+                              >
+                                Close
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   <tr>
                     <td colSpan="5" style={{ padding: '10px 20px', background: 'white' }}>
                       <button
