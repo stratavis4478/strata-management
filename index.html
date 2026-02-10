@@ -3766,7 +3766,9 @@ const SimpleCloudStorage = {
       const [storageQuota, setStorageQuota] = useState(null);
       const [showUploadModal, setShowUploadModal] = useState(false);
       const [selectedFile, setSelectedFile] = useState(null);
-      const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false });
+      const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false, category: '' });
+      const [permSectionCollapsed, setPermSectionCollapsed] = useState(false);
+      const [collapsedCategories, setCollapsedCategories] = useState({});
       const [docsSortBy, setDocsSortBy] = useState('date');
       const [permSortBy, setPermSortBy] = useState('year');
       const [showRegulationsModal, setShowRegulationsModal] = useState(false);
@@ -3880,6 +3882,11 @@ const SimpleCloudStorage = {
           alert('Please fill in all required fields');
           return;
         }
+        
+        if (uploadForm.isPermanent && !uploadForm.category) {
+          alert('Please select a category for permanent records');
+          return;
+        }
 
         setIsUploading(true);
         try {
@@ -3894,6 +3901,7 @@ const SimpleCloudStorage = {
               name: uploadForm.name,
               date: uploadForm.date,
               year: selectedYear,
+              category: uploadForm.category,
               driveFileId: result.id,
               webViewLink: result.webViewLink,
               size: result.size
@@ -3907,7 +3915,7 @@ const SimpleCloudStorage = {
           await loadFiles();
           setShowUploadModal(false);
           setSelectedFile(null);
-          setUploadForm({ name: '', date: '', isPermanent: false });
+          setUploadForm({ name: '', date: '', isPermanent: false, category: '' });
         } catch (error) {
           console.error('Upload error:', error);
           const errorMsg = error.message || 'Unknown error';
@@ -4137,7 +4145,7 @@ const SimpleCloudStorage = {
                     <input
                       type="checkbox"
                       checked={uploadForm.isPermanent}
-                      onChange={(e) => setUploadForm({...uploadForm, isPermanent: e.target.checked})}
+                      onChange={(e) => setUploadForm({...uploadForm, isPermanent: e.target.checked, category: e.target.checked ? uploadForm.category : ''})}
                       style={{ width: '18px', height: '18px' }}
                     />
                     <span>⭐ Keep as Permanent Record</span>
@@ -4146,6 +4154,25 @@ const SimpleCloudStorage = {
                     Document will be visible in all years
                   </small>
                 </div>
+                {uploadForm.isPermanent && (
+                  <div className="form-group">
+                    <label>Category <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select
+                      className="input-field"
+                      value={uploadForm.category}
+                      onChange={(e) => setUploadForm({...uploadForm, category: e.target.value})}
+                      style={{ width: '100%', padding: '10px', fontSize: '1rem' }}
+                    >
+                      <option value="">Select a category...</option>
+                      <option value="AGM & Council Minutes">📋 AGM & Council Minutes</option>
+                      <option value="Building Plans, Permits & Purchase">🏗️ Building Plans, Permits & Purchase</option>
+                      <option value="Bylaws & Rules">📜 Bylaws & Rules</option>
+                      <option value="Major Repairs & Maintenance">🔧 Major Repairs & Maintenance</option>
+                      <option value="Legal Documents">⚖️ Legal Documents</option>
+                      <option value="Other">📁 Other</option>
+                    </select>
+                  </div>
+                )}
                 <div className="upload-modal-buttons">
                   <button className="modal-button cancel" onClick={() => setShowUploadModal(false)}>
                     Cancel
@@ -4332,96 +4359,148 @@ const SimpleCloudStorage = {
 
           {permanentFiles.length > 0 && (
             <div className="card">
-              <div className="card-header">
-                <h2 className="card-title">📚 Permanent Records</h2>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Sort by:</span>
-                  <button 
-                    className={permSortBy === 'year' ? 'add-button' : 'export-button pdf'}
-                    onClick={() => setPermSortBy('year')}
-                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  >
-                    Year
-                  </button>
-                  <button 
-                    className={permSortBy === 'name' ? 'add-button' : 'export-button pdf'}
-                    onClick={() => setPermSortBy('name')}
-                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  >
-                    Name
-                  </button>
-                  <button 
-                    className={permSortBy === 'date' ? 'add-button' : 'export-button pdf'}
-                    onClick={() => setPermSortBy('date')}
-                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  >
-                    Date
-                  </button>
-                  <button 
-                    className={permSortBy === 'size' ? 'add-button' : 'export-button pdf'}
-                    onClick={() => setPermSortBy('size')}
-                    style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  >
-                    Size
-                  </button>
-                </div>
+              <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => setPermSectionCollapsed(!permSectionCollapsed)}>
+                <h2 className="card-title">
+                  {permSectionCollapsed ? '▶' : '▼'} 📚 Permanent Records ({permanentFiles.length})
+                </h2>
+                {!permSectionCollapsed && (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Sort by:</span>
+                    <button 
+                      className={permSortBy === 'year' ? 'add-button' : 'export-button pdf'}
+                      onClick={() => setPermSortBy('year')}
+                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                    >
+                      Year
+                    </button>
+                    <button 
+                      className={permSortBy === 'name' ? 'add-button' : 'export-button pdf'}
+                      onClick={() => setPermSortBy('name')}
+                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                    >
+                      Name
+                    </button>
+                    <button 
+                      className={permSortBy === 'date' ? 'add-button' : 'export-button pdf'}
+                      onClick={() => setPermSortBy('date')}
+                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                    >
+                      Date
+                    </button>
+                    <button 
+                      className={permSortBy === 'size' ? 'add-button' : 'export-button pdf'}
+                      onClick={() => setPermSortBy('size')}
+                      style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                    >
+                      Size
+                    </button>
+                  </div>
+                )}
               </div>
-              <div style={{ padding: '15px', background: '#FFF7ED', borderRadius: '8px', margin: '20px', border: '2px solid #FDBA74' }}>
-                <strong style={{ color: '#C2410C' }}>📌 Permanent Archive</strong>
-                <p style={{ marginTop: '8px', color: '#9A3412', fontSize: '0.9rem' }}>
-                  Documents marked as permanent records are viewable across all years.
-                </p>
-              </div>
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Document Name</th>
-                      <th style={{ width: '120px' }}>Size</th>
-                      <th style={{ width: '100px' }}>Date</th>
-                      <th style={{ width: '60px' }}>Year</th>
-                      <th style={{ width: '250px' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortPermanent(permanentFiles, permSortBy).map(doc => (
-                      <tr key={doc.id} style={{ background: getYearColor(doc.year) }}>
-                        <td><strong>{doc.name}</strong></td>
-                        <td>{doc.size ? formatBytes(doc.size) : '—'}</td>
-                        <td>{new Date(doc.date).toLocaleDateString()}</td>
-                        <td><span className="badge success">{doc.year}</span></td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <a
-                              href={doc.webViewLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="notes-button"
-                              style={{ borderColor: 'var(--primary)', color: 'var(--primary)', textDecoration: 'none', display: 'inline-block' }}
-                            >
-                              👁 View
-                            </a>
-                            <a
-                              href={`https://drive.google.com/uc?export=download&id=${doc.driveFileId}`}
-                              target="_blank"
-                              className="notes-button"
-                              style={{ borderColor: 'var(--success)', color: 'var(--success)', textDecoration: 'none', display: 'inline-block' }}
-                            >
-                              ⬇ Download
-                            </a>
-                            <button
-                              className="delete-button"
-                              onClick={() => handleDelete(doc.driveFileId, true)}
-                            >
-                              ✕
-                            </button>
+              
+              {!permSectionCollapsed && (
+                <>
+                  <div style={{ padding: '15px', background: '#FFF7ED', borderRadius: '8px', margin: '20px', border: '2px solid #FDBA74' }}>
+                    <strong style={{ color: '#C2410C' }}>📌 Permanent Archive</strong>
+                    <p style={{ marginTop: '8px', color: '#9A3412', fontSize: '0.9rem' }}>
+                      Documents organized by category. Click category headers to expand/collapse.
+                    </p>
+                  </div>
+
+                  {['AGM & Council Minutes', 'Building Plans, Permits & Purchase', 'Bylaws & Rules', 'Major Repairs & Maintenance', 'Legal Documents', 'Other'].map(category => {
+                    const categoryDocs = permanentFiles.filter(doc => doc.category === category);
+                    if (categoryDocs.length === 0) return null;
+                    
+                    const isCollapsed = collapsedCategories[category];
+                    const categoryIcons = {
+                      'AGM & Council Minutes': '📋',
+                      'Building Plans, Permits & Purchase': '🏗️',
+                      'Bylaws & Rules': '📜',
+                      'Major Repairs & Maintenance': '🔧',
+                      'Legal Documents': '⚖️',
+                      'Other': '📁'
+                    };
+                    
+                    return (
+                      <div key={category} style={{ marginBottom: '15px' }}>
+                        <div 
+                          style={{ 
+                            padding: '12px 20px', 
+                            background: '#F3F4F6', 
+                            borderRadius: '8px',
+                            margin: '0 20px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px'
+                          }}
+                          onClick={() => setCollapsedCategories(prev => ({...prev, [category]: !prev[category]}))}
+                        >
+                          <span>{isCollapsed ? '▶' : '▼'}</span>
+                          <span>{categoryIcons[category]} {category}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            ({categoryDocs.length} {categoryDocs.length === 1 ? 'document' : 'documents'})
+                          </span>
+                        </div>
+                        
+                        {!isCollapsed && (
+                          <div className="table-container" style={{ marginTop: '10px' }}>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Document Name</th>
+                                  <th style={{ width: '120px' }}>Size</th>
+                                  <th style={{ width: '100px' }}>Date</th>
+                                  <th style={{ width: '60px' }}>Year</th>
+                                  <th style={{ width: '250px' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sortPermanent(categoryDocs, permSortBy).map(doc => (
+                                  <tr key={doc.id} style={{ background: getYearColor(doc.year) }}>
+                                    <td><strong>{doc.name}</strong></td>
+                                    <td>{doc.size ? formatBytes(doc.size) : '—'}</td>
+                                    <td>{new Date(doc.date).toLocaleDateString()}</td>
+                                    <td><span className="badge success">{doc.year}</span></td>
+                                    <td>
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                        <a
+                                          href={doc.webViewLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="notes-button"
+                                          style={{ borderColor: 'var(--primary)', color: 'var(--primary)', textDecoration: 'none', display: 'inline-block' }}
+                                        >
+                                          👁 View
+                                        </a>
+                                        <a
+                                          href={`https://drive.google.com/uc?export=download&id=${doc.driveFileId}`}
+                                          target="_blank"
+                                          className="notes-button"
+                                          style={{ borderColor: 'var(--success)', color: 'var(--success)', textDecoration: 'none', display: 'inline-block' }}
+                                        >
+                                          ⬇ Download
+                                        </a>
+                                        <button
+                                          className="delete-button"
+                                          onClick={() => handleDelete(doc.driveFileId, true)}
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           )}
         </>
