@@ -1752,6 +1752,21 @@ const SimpleCloudStorage = {
           const priorYearData = allYearsData?.[priorYear];
           const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {} };
           
+          // Helper function to calculate R&M from marked expenses
+          const calculateRepairsMaintenance = (yearData) => {
+            if (!yearData) return 0;
+            const repairsExpenses = (yearData.customExpenses || []).filter(cat => cat.isRepairsMaintenance);
+            let total = 0;
+            repairsExpenses.forEach(category => {
+              if (yearData.expenses && yearData.expenses[category.name]) {
+                Object.values(yearData.expenses[category.name]).forEach(amount => {
+                  total += (parseFloat(amount) || 0);
+                });
+              }
+            });
+            return total;
+          };
+          
           // Calculate prior year actuals
           const priorYearActuals = { fees: {}, expenses: {} };
           if (priorYearData) {
@@ -1762,8 +1777,13 @@ const SimpleCloudStorage = {
               priorYearActuals.fees.unit706 = (priorYearActuals.fees.unit706 || 0) + (month.unit706 || 0);
             });
             
+            // Sum up regular expenses (excluding R&M marked categories)
             if (priorYearData.expenses) {
               Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+                // Check if this category is marked as R&M
+                const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === category && c.isRepairsMaintenance);
+                if (isRepairsMaint) return; // Skip - will be summed into R&M
+                
                 let categoryTotal = 0;
                 if (monthlyData && typeof monthlyData === 'object') {
                   Object.values(monthlyData).forEach(amount => {
@@ -1772,6 +1792,12 @@ const SimpleCloudStorage = {
                 }
                 priorYearActuals.expenses[category] = categoryTotal;
               });
+            }
+            
+            // Add calculated R&M total
+            const repairsMaintTotal = calculateRepairsMaintenance(priorYearData);
+            if (repairsMaintTotal > 0) {
+              priorYearActuals.expenses['Repairs & Maintenance'] = repairsMaintTotal;
             }
           }
           
@@ -1807,9 +1833,20 @@ const SimpleCloudStorage = {
           yPos += 6;
           doc.setFont(undefined, 'normal');
           
-          const budgetCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance', 'Repairs & Maintenance'];
-          const priorYearCustomCats = priorYearData?.expenses ? Object.keys(priorYearData.expenses).filter(cat => !budgetCategories.includes(cat)) : [];
-          const allBudgetCategories = [...budgetCategories, ...priorYearCustomCats];
+          // Standard categories (excluding R&M marked ones)
+          const standardCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance'];
+          const excludeFromCustom = [...standardCategories, 'Repairs & Maintenance'];
+          
+          // Get custom categories (not standard, not R&M marked)
+          const priorYearCustomCats = priorYearData?.expenses 
+            ? Object.keys(priorYearData.expenses).filter(cat => {
+                if (excludeFromCustom.includes(cat)) return false;
+                const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === cat && c.isRepairsMaintenance);
+                return !isRepairsMaint;
+              })
+            : [];
+          
+          const allBudgetCategories = [...standardCategories, 'Repairs & Maintenance', ...priorYearCustomCats];
           
           allBudgetCategories.forEach(category => {
             if (yPos > 275) {
@@ -1925,6 +1962,21 @@ const SimpleCloudStorage = {
           const priorYearData = allYearsData?.[priorYear];
           const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {} };
           
+          // Helper function to calculate R&M from marked expenses
+          const calculateRepairsMaintenance = (yearData) => {
+            if (!yearData) return 0;
+            const repairsExpenses = (yearData.customExpenses || []).filter(cat => cat.isRepairsMaintenance);
+            let total = 0;
+            repairsExpenses.forEach(category => {
+              if (yearData.expenses && yearData.expenses[category.name]) {
+                Object.values(yearData.expenses[category.name]).forEach(amount => {
+                  total += (parseFloat(amount) || 0);
+                });
+              }
+            });
+            return total;
+          };
+          
           // Calculate prior year actuals
           const priorYearActuals = { fees: {}, expenses: {} };
           if (priorYearData) {
@@ -1935,8 +1987,13 @@ const SimpleCloudStorage = {
               priorYearActuals.fees.unit706 = (priorYearActuals.fees.unit706 || 0) + (month.unit706 || 0);
             });
             
+            // Sum up regular expenses (excluding R&M marked categories)
             if (priorYearData.expenses) {
               Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+                // Check if this category is marked as R&M
+                const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === category && c.isRepairsMaintenance);
+                if (isRepairsMaint) return; // Skip - will be summed into R&M
+                
                 let categoryTotal = 0;
                 if (monthlyData && typeof monthlyData === 'object') {
                   Object.values(monthlyData).forEach(amount => {
@@ -1945,6 +2002,12 @@ const SimpleCloudStorage = {
                 }
                 priorYearActuals.expenses[category] = categoryTotal;
               });
+            }
+            
+            // Add calculated R&M total
+            const repairsMaintTotal = calculateRepairsMaintenance(priorYearData);
+            if (repairsMaintTotal > 0) {
+              priorYearActuals.expenses['Repairs & Maintenance'] = repairsMaintTotal;
             }
           }
           
@@ -1970,10 +2033,20 @@ const SimpleCloudStorage = {
           budgetData.push([]);
           budgetData.push(['EXPENSES']);
           
-          // Add expense categories
-          const budgetCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance', 'Repairs & Maintenance'];
-          const priorYearCustomCats = priorYearData?.expenses ? Object.keys(priorYearData.expenses).filter(cat => !budgetCategories.includes(cat)) : [];
-          const allBudgetCategories = [...budgetCategories, ...priorYearCustomCats];
+          // Standard categories (excluding R&M marked ones)
+          const standardCategories = ['Hydro (BC Hydro)', 'City Utilities (Water/Sewer/Garbage)', 'Strata Insurance'];
+          const excludeFromCustom = [...standardCategories, 'Repairs & Maintenance'];
+          
+          // Get custom categories (not standard, not R&M marked)
+          const priorYearCustomCats = priorYearData?.expenses 
+            ? Object.keys(priorYearData.expenses).filter(cat => {
+                if (excludeFromCustom.includes(cat)) return false;
+                const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === cat && c.isRepairsMaintenance);
+                return !isRepairsMaint;
+              })
+            : [];
+          
+          const allBudgetCategories = [...standardCategories, 'Repairs & Maintenance', ...priorYearCustomCats];
           
           let priorBudgetExpTotal = 0, priorActualExpTotal = 0, currentBudgetExpTotal = 0;
           
