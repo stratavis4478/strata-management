@@ -2492,12 +2492,23 @@ const SimpleCloudStorage = {
       // Get current proposed budget (need this early for category detection)
       const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
-      // Complete list of categories to exclude from custom list
+      // Complete list of categories to exclude from custom list (including old variations)
       const excludeFromCustom = [
         'Hydro (BC Hydro)',
+        'Hydro',
+        'BC Hydro',
         'City Utilities (Water/Sewer/Garbage)',
+        'City Utilities',
+        'Water',
+        'Sewer',
+        'Garbage',
+        'Water/Sewer/Garbage',
         'Strata Insurance',
-        'Repairs & Maintenance' // Old data might have this
+        'Insurance',
+        'Repairs & Maintenance',
+        'Repairs and Maintenance',
+        'Maintenance',
+        'Repairs'
       ];
       
       // Get ONLY custom categories from prior year expenses (not standard ones AND not R&M marked categories)
@@ -4040,7 +4051,12 @@ const SimpleCloudStorage = {
           alert('✅ Connected to Google Drive!');
         } catch (error) {
           console.error('Auth error:', error);
-          alert('Failed to connect to Google Drive. Please try again.');
+          const errorMsg = error.message || 'Unknown error';
+          if (errorMsg.includes('not ready')) {
+            alert('❌ Google APIs are still loading. Please wait 10 seconds and try again.');
+          } else {
+            alert(`❌ Failed to connect to Google Drive.\n\nError: ${errorMsg}\n\nTry:\n1. Refresh the page\n2. Wait 10 seconds for APIs to load\n3. Click Connect again`);
+          }
         }
       };
 
