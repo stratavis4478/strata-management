@@ -2492,24 +2492,34 @@ const SimpleCloudStorage = {
       // Get current proposed budget (need this early for category detection)
       const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
-      // Get ONLY custom categories from prior year expenses (not standard ones AND not R&M categories)
+      // Complete list of categories to exclude from custom list
+      const excludeFromCustom = [
+        'Hydro (BC Hydro)',
+        'City Utilities (Water/Sewer/Garbage)',
+        'Strata Insurance',
+        'Repairs & Maintenance' // Old data might have this
+      ];
+      
+      // Get ONLY custom categories from prior year expenses (not standard ones AND not R&M marked categories)
       const priorYearCustomCategories = priorYearData?.expenses 
         ? Object.keys(priorYearData.expenses).filter(cat => {
-            const isStandard = standardCategories.includes(cat);
+            // Exclude standard categories
+            if (excludeFromCustom.includes(cat)) return false;
+            // Exclude categories marked as R&M
             const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === cat && c.isRepairsMaintenance);
-            return !isStandard && !isRepairsMaint;
+            return !isRepairsMaint;
           })
         : [];
       
-      // Get manually added categories from current year budget
+      // Get manually added categories from current year budget (don't show standard or R&M)
       const manuallyAddedCategories = Object.keys(currentProposed?.expenses || {}).filter(cat => 
-        !standardCategories.includes(cat) && cat !== 'Repairs & Maintenance' && !priorYearCustomCategories.includes(cat)
+        !excludeFromCustom.includes(cat) && !priorYearCustomCategories.includes(cat)
       );
       
       // Combine prior year categories with manually added ones
       const customCategoriesToShow = [...priorYearCustomCategories, ...manuallyAddedCategories];
       
-      // All categories = standard + R&M + custom from prior year + manually added
+      // All categories = standard + R&M + custom (no duplicates)
       const allCategories = [...standardCategories, 'Repairs & Maintenance', ...customCategoriesToShow];
       
       // Initialize budget data structure if not exists
@@ -2777,7 +2787,7 @@ const SimpleCloudStorage = {
                       <tr key={category}>
                         <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
                           {category}
-                          {isRepairsMaint && priorActualRM && priorActualRM.breakdown.length > 0 && (
+                          {isRepairsMaint && (
                             <button
                               onClick={() => setRepairsBreakdownPopup(repairsBreakdownPopup ? null : 'show')}
                               style={{
@@ -3307,6 +3317,7 @@ const SimpleCloudStorage = {
     function ExpensesTab({ data, updateExpense }) {
       const [newCategoryName, setNewCategoryName] = useState('');
       const [newCategoryFrequency, setNewCategoryFrequency] = useState('onetime');
+      const [isRepairsMaintenance, setIsRepairsMaintenance] = useState(false);
       const [notesModal, setNotesModal] = useState({ isOpen: false, key: null, note: '' });
       const [expensesNotes, setExpensesNotes] = useState(data.expensesTabNotes || '');
 
@@ -3367,6 +3378,7 @@ const SimpleCloudStorage = {
 
         setNewCategoryName('');
         setNewCategoryFrequency('onetime');
+        setIsRepairsMaintenance(false);
       };
 
       const deleteCustomCategory = (categoryName, setData) => {
@@ -3560,10 +3572,8 @@ const SimpleCloudStorage = {
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
-                    checked={newCategoryName && (data.customExpenses || []).find(c => c.name === newCategoryName)?.isRepairsMaintenance || false}
-                    onChange={(e) => {
-                      // This will be handled when category is added
-                    }}
+                    checked={isRepairsMaintenance}
+                    onChange={(e) => setIsRepairsMaintenance(e.target.checked)}
                     style={{ width: '18px', height: '18px' }}
                     id="repairs-maintenance-checkbox"
                   />
