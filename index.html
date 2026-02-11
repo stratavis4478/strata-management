@@ -1263,8 +1263,7 @@ const SimpleCloudStorage = {
     const EXPENSE_CATEGORIES = [
       { name: 'Hydro (BC Hydro)', frequency: 'bimonthly', months: ['February', 'April', 'June', 'August', 'October', 'December'] },
       { name: 'City Utilities (Water/Sewer/Garbage)', frequency: 'semiannual', months: ['April', 'October'] },
-      { name: 'Strata Insurance', frequency: 'annual', months: ['June'] },
-      { name: 'Repairs & Maintenance', frequency: 'monthly', months: MONTHS }
+      { name: 'Strata Insurance', frequency: 'annual', months: ['June'] }
     ];
 
     // Initialize default data structure
@@ -2398,13 +2397,13 @@ const SimpleCloudStorage = {
     function BudgetsTab({ data, allYearsData, selectedYear, setData }) {
       const [budgetNotes, setBudgetNotes] = useState(data.budgetTabNotes || '');
       const [activeNotePopup, setActiveNotePopup] = useState(null);
+      const [repairsBreakdownPopup, setRepairsBreakdownPopup] = useState(null); // 'prior-proposed', 'prior-actual', or 'current'
       
-      // Standard expense categories - MUST match Expenses tab exactly
+      // Standard expense categories - MUST match Expenses tab exactly (NO Repairs & Maintenance - it's calculated)
       const standardCategories = [
         'Hydro (BC Hydro)',
         'City Utilities (Water/Sewer/Garbage)',
-        'Strata Insurance',
-        'Repairs & Maintenance'
+        'Strata Insurance'
       ];
       
       // Get custom categories from data, but filter out any that are actually standard
@@ -2414,6 +2413,30 @@ const SimpleCloudStorage = {
       // Get prior year data
       const priorYear = selectedYear - 1;
       const priorYearData = allYearsData?.[priorYear];
+      
+      // Calculate R&M total from marked custom expenses
+      const calculateRepairsMaintenance = (yearData) => {
+        if (!yearData) return { total: 0, breakdown: [] };
+        
+        const repairsExpenses = (yearData.customExpenses || []).filter(cat => cat.isRepairsMaintenance);
+        let total = 0;
+        const breakdown = [];
+        
+        repairsExpenses.forEach(category => {
+          let categoryTotal = 0;
+          if (yearData.expenses && yearData.expenses[category.name]) {
+            Object.values(yearData.expenses[category.name]).forEach(amount => {
+              categoryTotal += (parseFloat(amount) || 0);
+            });
+          }
+          if (categoryTotal > 0) {
+            total += categoryTotal;
+            breakdown.push({ name: category.name, amount: categoryTotal });
+          }
+        });
+        
+        return { total, breakdown };
+      };
       
       // Calculate prior year actual totals from expenses
       const getPriorYearActuals = () => {
@@ -2433,8 +2456,13 @@ const SimpleCloudStorage = {
         });
         
         // Sum up expenses by category - iterate through ALL categories in prior year expenses
+        // EXCEPT those marked as Repairs & Maintenance (they'll be summed separately)
         if (priorYearData.expenses) {
           Object.entries(priorYearData.expenses).forEach(([category, monthlyData]) => {
+            // Check if this is a R&M category
+            const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === category && c.isRepairsMaintenance);
+            if (isRepairsMaint) return; // Skip - will be included in R&M total
+            
             let categoryTotal = 0;
             // monthlyData is an object with keys like 'jan', 'feb', etc.
             if (monthlyData && typeof monthlyData === 'object') {
@@ -2446,6 +2474,12 @@ const SimpleCloudStorage = {
           });
         }
         
+        // Add R&M as calculated total
+        const repairsMaint = calculateRepairsMaintenance(priorYearData);
+        if (repairsMaint.total > 0) {
+          actuals.expenses['Repairs & Maintenance'] = repairsMaint.total;
+        }
+        
         return actuals;
       };
       
@@ -2455,18 +2489,28 @@ const SimpleCloudStorage = {
       // This is what we display in column 1 (read-only)
       const priorYearProposedBudget = priorYearData?.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
-      // Get ONLY custom categories from prior year expenses (not standard ones)
-      // These are the ONLY custom categories that should appear in this year's budget
+      // Get current proposed budget (need this early for category detection)
+      const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
+      
+      // Get ONLY custom categories from prior year expenses (not standard ones AND not R&M categories)
       const priorYearCustomCategories = priorYearData?.expenses 
-        ? Object.keys(priorYearData.expenses).filter(cat => !standardCategories.includes(cat))
+        ? Object.keys(priorYearData.expenses).filter(cat => {
+            const isStandard = standardCategories.includes(cat);
+            const isRepairsMaint = (priorYearData.customExpenses || []).find(c => c.name === cat && c.isRepairsMaintenance);
+            return !isStandard && !isRepairsMaint;
+          })
         : [];
       
-      // Don't merge with stored custom categories - only use what was in prior year
-      // This ensures custom categories only appear in the year AFTER they were created
-      const customCategoriesToShow = priorYearCustomCategories;
+      // Get manually added categories from current year budget
+      const manuallyAddedCategories = Object.keys(currentProposed?.expenses || {}).filter(cat => 
+        !standardCategories.includes(cat) && cat !== 'Repairs & Maintenance' && !priorYearCustomCategories.includes(cat)
+      );
       
-      // All categories = standard + custom from prior year only
-      const allCategories = [...standardCategories, ...customCategoriesToShow];
+      // Combine prior year categories with manually added ones
+      const customCategoriesToShow = [...priorYearCustomCategories, ...manuallyAddedCategories];
+      
+      // All categories = standard + R&M + custom from prior year + manually added
+      const allCategories = [...standardCategories, 'Repairs & Maintenance', ...customCategoriesToShow];
       
       // Initialize budget data structure if not exists
       if (!data.budget) {
@@ -2554,8 +2598,6 @@ const SimpleCloudStorage = {
           });
         }
       };
-      
-      const currentProposed = data.budget?.currentYearProposed || { fees: {}, expenses: {}, notes: {} };
       
       // Calculate totals - ONLY from categories that are actually displayed
       const calculateTotals = (fees, expenses, categoriesToInclude) => {
@@ -2724,11 +2766,34 @@ const SimpleCloudStorage = {
                   {allCategories.map(category => {
                     const noteKey = `expense_${category}`;
                     const hasNote = currentProposed.notes?.[noteKey];
-                    const isCustom = !standardCategories.includes(category);
+                    const isCustom = !standardCategories.includes(category) && category !== 'Repairs & Maintenance';
+                    const isRepairsMaint = category === 'Repairs & Maintenance';
+                    
+                    // For R&M, calculate from prior year data
+                    const priorProposedRM = isRepairsMaint ? calculateRepairsMaintenance(priorYearData) : null;
+                    const priorActualRM = isRepairsMaint ? calculateRepairsMaintenance(priorYearData) : null;
+                    
                     return (
                       <tr key={category}>
                         <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
                           {category}
+                          {isRepairsMaint && priorActualRM && priorActualRM.breakdown.length > 0 && (
+                            <button
+                              onClick={() => setRepairsBreakdownPopup(repairsBreakdownPopup ? null : 'show')}
+                              style={{
+                                marginLeft: '8px',
+                                padding: '2px 8px',
+                                fontSize: '0.75rem',
+                                background: '#DBEAFE',
+                                color: '#1E40AF',
+                                border: '1px solid #93C5FD',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ℹ️ Details
+                            </button>
+                          )}
                           {isCustom && (
                             <button
                               onClick={() => removeCustomCategory(category)}
@@ -2748,10 +2813,14 @@ const SimpleCloudStorage = {
                           )}
                         </td>
                         <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
-                          {formatCurrency(priorYearProposedBudget.expenses?.[category] || 0)}
+                          {isRepairsMaint && priorProposedRM 
+                            ? formatCurrency(priorYearProposedBudget.expenses?.['Repairs & Maintenance'] || 0)
+                            : formatCurrency(priorYearProposedBudget.expenses?.[category] || 0)}
                         </td>
                         <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
-                          {formatCurrency(priorYearActuals.expenses?.[category] || 0)}
+                          {isRepairsMaint && priorActualRM
+                            ? formatCurrency(priorActualRM.total)
+                            : formatCurrency(priorYearActuals.expenses?.[category] || 0)}
                         </td>
                         <td style={{ background: 'white' }}>
                           <input
@@ -2893,6 +2962,82 @@ const SimpleCloudStorage = {
             {!priorYearData && (
               <div style={{ padding: '20px', background: '#FEF3C7', margin: '20px', borderRadius: '8px', border: '1px solid #FCD34D' }}>
                 ℹ️ <strong>Note:</strong> No data found for {priorYear}. The "{priorYear} Budget Proposed" and "{priorYear} Actual" columns will be empty until you add data for that year.
+              </div>
+            )}
+            
+            {/* Repairs & Maintenance Breakdown Popup */}
+            {repairsBreakdownPopup && priorYearData && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999
+              }} onClick={() => setRepairsBreakdownPopup(null)}>
+                <div style={{
+                  background: 'white',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  maxWidth: '500px',
+                  width: '90%',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                }} onClick={(e) => e.stopPropagation()}>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>
+                    🔧 Repairs & Maintenance Breakdown ({priorYear})
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                    These expense categories were marked as "Repairs & Maintenance" and are summed together:
+                  </p>
+                  {(() => {
+                    const rmData = calculateRepairsMaintenance(priorYearData);
+                    return (
+                      <>
+                        {rmData.breakdown.length > 0 ? (
+                          <table style={{ width: '100%', marginBottom: '20px' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '2px solid #E5E7EB' }}>
+                                <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-secondary)' }}>Expense Category</th>
+                                <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text-secondary)' }}>Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rmData.breakdown.map((item, idx) => (
+                                <tr key={idx} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                                  <td style={{ padding: '8px' }}>{item.name}</td>
+                                  <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                                    {formatCurrency(item.amount)}
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr style={{ fontWeight: '700', borderTop: '2px solid #E5E7EB' }}>
+                                <td style={{ padding: '8px' }}>TOTAL</td>
+                                <td style={{ padding: '8px', textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                                  {formatCurrency(rmData.total)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p style={{ padding: '20px', background: '#F3F4F6', borderRadius: '8px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No expenses were marked as Repairs & Maintenance in {priorYear}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <button
+                    onClick={() => setRepairsBreakdownPopup(null)}
+                    className="add-button"
+                    style={{ width: '100%', marginTop: '10px' }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -3196,10 +3341,13 @@ const SimpleCloudStorage = {
         if (!newCategoryName.trim()) return;
 
         const months = getMonthsForFrequency(newCategoryFrequency);
+        const isRepairsMaint = document.getElementById('repairs-maintenance-checkbox').checked;
+        
         const newCategory = {
           name: newCategoryName.trim(),
           frequency: newCategoryFrequency,
-          months: months
+          months: months,
+          isRepairsMaintenance: isRepairsMaint
         };
 
         setData(prev => {
@@ -3391,7 +3539,7 @@ const SimpleCloudStorage = {
                   className="input-field"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="e.g., Elevator Maintenance"
+                  placeholder="e.g., Tree Cutting, Snow Removal"
                 />
               </div>
               <div className="form-group">
@@ -3407,6 +3555,23 @@ const SimpleCloudStorage = {
                   <option value="semiannual">Semi-Annual</option>
                   <option value="annual">Annual</option>
                 </select>
+              </div>
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={newCategoryName && (data.customExpenses || []).find(c => c.name === newCategoryName)?.isRepairsMaintenance || false}
+                    onChange={(e) => {
+                      // This will be handled when category is added
+                    }}
+                    style={{ width: '18px', height: '18px' }}
+                    id="repairs-maintenance-checkbox"
+                  />
+                  <span>🔧 Include in Repairs & Maintenance budget</span>
+                </label>
+                <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px', marginLeft: '26px', fontStyle: 'italic' }}>
+                  This expense will be grouped under "Repairs & Maintenance" in next year's budget
+                </small>
               </div>
               <button type="submit" className="add-button">
                 + Add Category
@@ -3788,7 +3953,11 @@ const SimpleCloudStorage = {
       const sortDocuments = (docs, sortBy) => {
         const sorted = [...docs];
         if (sortBy === 'date') {
-          sorted.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime));
+          sorted.sort((a, b) => {
+            const dateA = a.description ? new Date(a.description) : new Date(a.createdTime);
+            const dateB = b.description ? new Date(b.description) : new Date(b.createdTime);
+            return dateB - dateA;
+          });
         } else if (sortBy === 'name') {
           sorted.sort((a, b) => a.name.localeCompare(b.name));
         } else if (sortBy === 'size') {
@@ -4343,7 +4512,7 @@ const SimpleCloudStorage = {
                       <tr key={file.id}>
                         <td><strong>{file.name}</strong></td>
                         <td>{formatBytes(file.size)}</td>
-                        <td>{file.description ? formatDateLocal(file.description) : new Date(file.createdTime).toLocaleDateString()}</td>
+                        <td>{formatDateLocal(file.description)}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <a
