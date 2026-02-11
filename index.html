@@ -1021,6 +1021,7 @@ const GoogleDriveManager = {
     const fileMetadata = {
       name: metadata.name || file.name,
       parents: [folderId],
+      description: metadata.date || '' // Store custom date in description
     };
 
     const form = new FormData();
@@ -1061,7 +1062,7 @@ const GoogleDriveManager = {
       
       const response = await gapi.client.drive.files.list({
         q: `'${folderId}' in parents and trashed=false`,
-        fields: 'files(id, name, webViewLink, webContentLink, size, mimeType, createdTime, iconLink)',
+        fields: 'files(id, name, webViewLink, webContentLink, size, mimeType, createdTime, description, iconLink)',
         orderBy: 'createdTime desc',
       });
 
@@ -4333,7 +4334,7 @@ const SimpleCloudStorage = {
                     <tr>
                       <th>Document Name</th>
                       <th style={{ width: '120px' }}>Size</th>
-                      <th style={{ width: '100px' }}>Uploaded</th>
+                      <th style={{ width: '100px' }}>Date</th>
                       <th style={{ width: '200px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -4342,7 +4343,7 @@ const SimpleCloudStorage = {
                       <tr key={file.id}>
                         <td><strong>{file.name}</strong></td>
                         <td>{formatBytes(file.size)}</td>
-                        <td>{new Date(file.createdTime).toLocaleDateString()}</td>
+                        <td>{file.description ? formatDateLocal(file.description) : new Date(file.createdTime).toLocaleDateString()}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <a
