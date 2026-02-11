@@ -3768,7 +3768,14 @@ const SimpleCloudStorage = {
       const [selectedFile, setSelectedFile] = useState(null);
       const [uploadForm, setUploadForm] = useState({ name: '', date: '', isPermanent: false, category: '' });
       const [permSectionCollapsed, setPermSectionCollapsed] = useState(false);
-      const [collapsedCategories, setCollapsedCategories] = useState({});
+      const [collapsedCategories, setCollapsedCategories] = useState({
+        'AGM & Council Minutes': true,
+        'Building Plans, Permits & Purchase': true,
+        'Bylaws & Rules': true,
+        'Major Repairs & Maintenance': true,
+        'Legal Documents': true,
+        'Other': true
+      });
       const [docsSortBy, setDocsSortBy] = useState('date');
       const [permSortBy, setPermSortBy] = useState('year');
       const [showRegulationsModal, setShowRegulationsModal] = useState(false);
@@ -3870,8 +3877,9 @@ const SimpleCloudStorage = {
         setSelectedFile(file);
         setUploadForm({
           name: file.name.replace(/\.[^/.]+$/, ''),
-          date: new Date().toISOString().split('T')[0],
-          isPermanent: false
+          date: '', // Leave blank instead of auto-filling with today
+          isPermanent: false,
+          category: ''
         });
         setShowUploadModal(true);
         event.target.value = '';
@@ -3962,6 +3970,15 @@ const SimpleCloudStorage = {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return Math.round(bytes / Math.pow(k, i)) + ' ' + sizes[i];
+      };
+      
+      // Format date string without timezone shift
+      const formatDateLocal = (dateString) => {
+        if (!dateString) return '—';
+        // Parse as local date to avoid timezone shift
+        const [year, month, day] = dateString.split('-');
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString();
       };
 
       if (!isAuthenticated) {
@@ -4224,12 +4241,17 @@ const SimpleCloudStorage = {
                 <p style={{ marginBottom: '20px', color: 'var(--text-secondary)' }}>
                   Select a file to upload to Google Drive
                 </p>
+                <div style={{ padding: '12px', background: '#FEF3C7', borderRadius: '8px', marginBottom: '15px', border: '1px solid #FCD34D' }}>
+                  <p style={{ fontSize: '0.85rem', color: '#92400E', margin: 0 }}>
+                    <strong>💡 Tip:</strong> Upload individual PDFs, Word docs, or images. ZIP files can be downloaded but not viewed directly in browser. For multiple files, upload each separately or use a multi-page PDF.
+                  </p>
+                </div>
                 <input
                   type="file"
                   onChange={handleFileSelect}
                   style={{ display: 'none' }}
                   id="file-upload"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip"
                   disabled={isUploading}
                 />
                 <label htmlFor="file-upload" className="add-button" style={{ cursor: isUploading ? 'wait' : 'pointer', display: 'inline-block' }}>
@@ -4461,7 +4483,7 @@ const SimpleCloudStorage = {
                                   <tr key={doc.id} style={{ background: getYearColor(doc.year) }}>
                                     <td><strong>{doc.name}</strong></td>
                                     <td>{doc.size ? formatBytes(doc.size) : '—'}</td>
-                                    <td>{new Date(doc.date).toLocaleDateString()}</td>
+                                    <td>{formatDateLocal(doc.date)}</td>
                                     <td><span className="badge success">{doc.year}</span></td>
                                     <td>
                                       <div style={{ display: 'flex', gap: '8px' }}>
