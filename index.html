@@ -1250,6 +1250,15 @@ const SimpleCloudStorage = {
       return new Intl.NumberFormat('en-CA', {
         style: 'currency',
         currency: 'CAD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount || 0);
+    };
+    
+    const formatCurrencyWhole = (amount) => {
+      return new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       }).format(amount || 0);
@@ -1749,6 +1758,9 @@ const SimpleCloudStorage = {
           doc.setFont(undefined, 'bold');
           doc.text(`${selectedYear} Budget Comparison`, 20, yPos);
           yPos += 10;
+          
+          // Budget uses whole dollars - override formatCurrency locally
+          const formatCurrency = formatCurrencyWhole;
           
           // Get prior year data for budget
           const priorYear = selectedYear - 1;
@@ -2758,6 +2770,9 @@ const SimpleCloudStorage = {
         }, 0);
         return { feeTotal, expenseTotal, surplus: feeTotal - expenseTotal };
       };
+      
+      // Budget tab uses whole dollars (no cents)
+      const formatCurrency = formatCurrencyWhole;
       
       const priorProposedTotals = calculateTotals(priorYearProposedBudget.fees || {}, priorYearProposedBudget.expenses || {}, allCategories);
       const priorActualsTotals = calculateTotals(priorYearActuals.fees || {}, priorYearActuals.expenses || {}, allCategories);
