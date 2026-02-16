@@ -1811,9 +1811,9 @@ const SimpleCloudStorage = {
           doc.text(`${selectedYear} Budget`, 180, yPos, { align: 'right' });
           yPos += 8;
           
-          // Fees section
+          // Income section
           doc.setFont(undefined, 'bold');
-          doc.text('STRATA FEES', 20, yPos);
+          doc.text('INCOME', 20, yPos);
           yPos += 6;
           doc.setFont(undefined, 'normal');
           
@@ -1826,9 +1826,26 @@ const SimpleCloudStorage = {
             yPos += 5;
           });
           
-          // Expenses section
+          // Bank Interest
+          doc.text('Bank Interest (CRF)', 25, yPos);
+          doc.text(formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0), 85, yPos, { align: 'right' });
+          doc.text(formatCurrency(data.budget.currentYearProposed.fees?.bankInterestActual || 0), 115, yPos, { align: 'right' });
+          doc.text(formatCurrency(data.budget.currentYearProposed.fees?.bankInterest || 0), 180, yPos, { align: 'right' });
           yPos += 5;
+          
+          // Total Income
+          const priorProposedIncomeTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0) + (priorYearProposedBudget.fees?.bankInterest || 0);
+          const priorActualIncomeTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0);
+          const currentProposedIncomeTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0) + (data.budget.currentYearProposed.fees?.bankInterestActual || 0);
+          
           doc.setFont(undefined, 'bold');
+          doc.text('TOTAL INCOME', 25, yPos);
+          doc.text(formatCurrency(priorProposedIncomeTotal), 85, yPos, { align: 'right' });
+          doc.text(formatCurrency(priorActualIncomeTotal), 115, yPos, { align: 'right' });
+          doc.text(formatCurrency(currentProposedIncomeTotal), 180, yPos, { align: 'right' });
+          yPos += 10;
+          
+          // Expenses section
           doc.text('EXPENSES', 20, yPos);
           yPos += 6;
           doc.setFont(undefined, 'normal');
@@ -2016,20 +2033,21 @@ const SimpleCloudStorage = {
             [],
             ['Line Item', `${priorYear} Budget Proposed`, `${priorYear} Actual`, `${selectedYear} Budget Proposed`],
             [],
-            ['STRATA FEES'],
+            ['INCOME'],
             ['Unit 700', priorYearProposedBudget.fees?.unit700 || 0, priorYearActuals.fees?.unit700 || 0, data.budget.currentYearProposed.fees?.unit700 || 0],
             ['Unit 702', priorYearProposedBudget.fees?.unit702 || 0, priorYearActuals.fees?.unit702 || 0, data.budget.currentYearProposed.fees?.unit702 || 0],
             ['Unit 704', priorYearProposedBudget.fees?.unit704 || 0, priorYearActuals.fees?.unit704 || 0, data.budget.currentYearProposed.fees?.unit704 || 0],
             ['Unit 706', priorYearProposedBudget.fees?.unit706 || 0, priorYearActuals.fees?.unit706 || 0, data.budget.currentYearProposed.fees?.unit706 || 0],
+            ['Bank Interest (CRF)', priorYearProposedBudget.fees?.bankInterest || 0, data.budget.currentYearProposed.fees?.bankInterestActual || 0, data.budget.currentYearProposed.fees?.bankInterest || 0],
             []
           ];
           
-          // Calculate fee totals
-          const priorBudgetFeesTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0);
+          // Calculate income totals (including bank interest)
+          const priorBudgetFeesTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0) + (priorYearProposedBudget.fees?.bankInterest || 0);
           const priorActualFeesTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0);
-          const currentBudgetFeesTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0);
+          const currentBudgetFeesTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0) + (data.budget.currentYearProposed.fees?.bankInterestActual || 0);
           
-          budgetData.push(['TOTAL FEES', priorBudgetFeesTotal, priorActualFeesTotal, currentBudgetFeesTotal]);
+          budgetData.push(['TOTAL INCOME', priorBudgetFeesTotal, priorActualFeesTotal, currentBudgetFeesTotal]);
           budgetData.push([]);
           budgetData.push(['EXPENSES']);
           
@@ -2695,7 +2713,7 @@ const SimpleCloudStorage = {
       
       // Calculate totals - ONLY from categories that are actually displayed
       const calculateTotals = (fees, expenses, categoriesToInclude) => {
-        const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0);
+        const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0) + (fees.bankInterest || 0) + (fees.bankInterestActual || 0);
         // Only sum expenses from categories that are visible in the table
         const expenseTotal = categoriesToInclude.reduce((sum, category) => {
           return sum + (parseFloat(expenses[category]) || 0);
@@ -2740,10 +2758,10 @@ const SimpleCloudStorage = {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* STRATA FEES SECTION */}
+                  {/* INCOME SECTION */}
                   <tr style={{ background: '#F3F4F6' }}>
                     <td colSpan="5" style={{ fontWeight: '700', fontSize: '1.05rem', padding: '15px 20px' }}>
-                      📊 STRATA FEES (Income)
+                      💰 INCOME
                     </td>
                   </tr>
                   {['unit700', 'unit702', 'unit704', 'unit706'].map(unit => {
@@ -2837,8 +2855,102 @@ const SimpleCloudStorage = {
                       </tr>
                     );
                   })}
+                  
+                  {/* BANK INTEREST ROW */}
+                  <tr key="bankInterest">
+                    <td style={{ position: 'sticky', left: 0, background: 'white', fontWeight: '600' }}>
+                      🏦 Bank Interest (CRF)
+                    </td>
+                    <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
+                      {formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0)}
+                    </td>
+                    <td style={{ background: 'white' }}>
+                      <input
+                        type="number"
+                        className="input-field"
+                        value={currentProposed.fees?.bankInterestActual || ''}
+                        onChange={(e) => updateBudgetValue('currentYearProposed', 'fees', 'bankInterestActual', e.target.value)}
+                        placeholder="0.00"
+                        style={{ textAlign: 'right' }}
+                      />
+                    </td>
+                    <td style={{ background: 'white' }}>
+                      <input
+                        type="number"
+                        className="input-field"
+                        value={currentProposed.fees?.bankInterest || ''}
+                        onChange={(e) => updateBudgetValue('currentYearProposed', 'fees', 'bankInterest', e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </td>
+                    <td style={{ background: 'white', textAlign: 'center', position: 'relative' }}>
+                      <button
+                        onClick={() => setActiveNotePopup(activeNotePopup === 'fee_bankInterest' ? null : 'fee_bankInterest')}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '0.85rem',
+                          background: currentProposed.notes?.['fee_bankInterest'] ? '#DBEAFE' : '#F3F4F6',
+                          color: currentProposed.notes?.['fee_bankInterest'] ? '#1E40AF' : '#6B7280',
+                          border: currentProposed.notes?.['fee_bankInterest'] ? '1px solid #93C5FD' : '1px solid #D1D5DB',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: currentProposed.notes?.['fee_bankInterest'] ? '600' : 'normal'
+                        }}
+                      >
+                        {currentProposed.notes?.['fee_bankInterest'] ? '📝' : '➕'} Note
+                      </button>
+                      {activeNotePopup === 'fee_bankInterest' && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: '5px',
+                          background: 'white',
+                          border: '2px solid #3B82F6',
+                          borderRadius: '8px',
+                          padding: '10px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                          zIndex: 1000,
+                          minWidth: '250px'
+                        }}>
+                          <textarea
+                            value={currentProposed.notes?.['fee_bankInterest'] || ''}
+                            onChange={(e) => updateBudgetNote('currentYearProposed', 'fee_bankInterest', e.target.value)}
+                            placeholder="Add note..."
+                            style={{
+                              width: '100%',
+                              minHeight: '60px',
+                              padding: '8px',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: '4px',
+                              fontSize: '0.9rem',
+                              fontFamily: 'inherit',
+                              resize: 'vertical'
+                            }}
+                          />
+                          <button
+                            onClick={() => setActiveNotePopup(null)}
+                            style={{
+                              marginTop: '8px',
+                              padding: '4px 12px',
+                              fontSize: '0.85rem',
+                              background: '#3B82F6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              width: '100%'
+                            }}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                  
                   <tr style={{ fontWeight: '700', background: '#F9FAFB' }}>
-                    <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL FEES</td>
+                    <td style={{ position: 'sticky', left: 0, background: '#F9FAFB' }}>TOTAL INCOME</td>
                     <td style={{ background: '#F9FAFB', textAlign: 'right', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
                       {formatCurrency(priorProposedTotals.feeTotal)}
                     </td>
