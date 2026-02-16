@@ -1615,9 +1615,6 @@ const SimpleCloudStorage = {
         doc.text(`Total Strata Fees:`, 25, yPos);
         doc.text(formatCurrency(totals.income), 170, yPos, { align: 'right' });
         yPos += 7;
-        doc.text(`Bank Interest (CRF):`, 25, yPos);
-        doc.text(formatCurrency(data.bankInterest || 0), 170, yPos, { align: 'right' });
-        yPos += 7;
         doc.text(`Total Expenses:`, 25, yPos);
         doc.text(formatCurrency(totals.expenses), 170, yPos, { align: 'right' });
         yPos += 7;
@@ -1838,14 +1835,14 @@ const SimpleCloudStorage = {
           // Bank Interest
           doc.text('Bank Interest (CRF)', 25, yPos);
           doc.text(formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0), 85, yPos, { align: 'right' });
-          doc.text(formatCurrency(data.budget.currentYearProposed.fees?.bankInterestActual || 0), 115, yPos, { align: 'right' });
+          doc.text(formatCurrency(data.bankInterest || 0), 115, yPos, { align: 'right' });
           doc.text(formatCurrency(data.budget.currentYearProposed.fees?.bankInterest || 0), 180, yPos, { align: 'right' });
           yPos += 5;
           
           // Total Income
           const priorProposedIncomeTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0) + (priorYearProposedBudget.fees?.bankInterest || 0);
-          const priorActualIncomeTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0);
-          const currentProposedIncomeTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0) + (data.budget.currentYearProposed.fees?.bankInterestActual || 0);
+          const priorActualIncomeTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0) + (priorYearActuals.fees?.bankInterest || 0);
+          const currentProposedIncomeTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0);
           
           doc.setFont(undefined, 'bold');
           doc.text('TOTAL INCOME', 25, yPos);
@@ -1901,7 +1898,6 @@ const SimpleCloudStorage = {
           ['Strata Plan VIS4478'],
           [],
           ['Total Strata Fees', totals.income],
-          ['Bank Interest (CRF)', data.bankInterest || 0],
           ['Total Expenses', totals.expenses],
           ['Net Surplus/(Deficit)', totals.surplus],
           [],
@@ -2049,14 +2045,14 @@ const SimpleCloudStorage = {
             ['Unit 702', priorYearProposedBudget.fees?.unit702 || 0, priorYearActuals.fees?.unit702 || 0, data.budget.currentYearProposed.fees?.unit702 || 0],
             ['Unit 704', priorYearProposedBudget.fees?.unit704 || 0, priorYearActuals.fees?.unit704 || 0, data.budget.currentYearProposed.fees?.unit704 || 0],
             ['Unit 706', priorYearProposedBudget.fees?.unit706 || 0, priorYearActuals.fees?.unit706 || 0, data.budget.currentYearProposed.fees?.unit706 || 0],
-            ['Bank Interest (CRF)', priorYearProposedBudget.fees?.bankInterest || 0, data.budget.currentYearProposed.fees?.bankInterestActual || 0, data.budget.currentYearProposed.fees?.bankInterest || 0],
+            ['Bank Interest (CRF)', priorYearProposedBudget.fees?.bankInterest || 0, priorYearActuals.fees?.bankInterest || 0, data.budget.currentYearProposed.fees?.bankInterest || 0],
             []
           ];
           
           // Calculate income totals (including bank interest)
           const priorBudgetFeesTotal = (priorYearProposedBudget.fees?.unit700 || 0) + (priorYearProposedBudget.fees?.unit702 || 0) + (priorYearProposedBudget.fees?.unit704 || 0) + (priorYearProposedBudget.fees?.unit706 || 0) + (priorYearProposedBudget.fees?.bankInterest || 0);
-          const priorActualFeesTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0);
-          const currentBudgetFeesTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0) + (data.budget.currentYearProposed.fees?.bankInterestActual || 0);
+          const priorActualFeesTotal = (priorYearActuals.fees?.unit700 || 0) + (priorYearActuals.fees?.unit702 || 0) + (priorYearActuals.fees?.unit704 || 0) + (priorYearActuals.fees?.unit706 || 0) + (priorYearActuals.fees?.bankInterest || 0);
+          const currentBudgetFeesTotal = (data.budget.currentYearProposed.fees?.unit700 || 0) + (data.budget.currentYearProposed.fees?.unit702 || 0) + (data.budget.currentYearProposed.fees?.unit704 || 0) + (data.budget.currentYearProposed.fees?.unit706 || 0) + (data.budget.currentYearProposed.fees?.bankInterest || 0);
           
           budgetData.push(['TOTAL INCOME', priorBudgetFeesTotal, priorActualFeesTotal, currentBudgetFeesTotal]);
           budgetData.push([]);
@@ -2576,7 +2572,7 @@ const SimpleCloudStorage = {
         if (!priorYearData) return { fees: {}, expenses: {} };
         
         const actuals = {
-          fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0 },
+          fees: { unit700: 0, unit702: 0, unit704: 0, unit706: 0, bankInterest: 0 },
           expenses: {}
         };
         
@@ -2587,6 +2583,9 @@ const SimpleCloudStorage = {
           actuals.fees.unit704 += (month.unit704 || 0);
           actuals.fees.unit706 += (month.unit706 || 0);
         });
+        
+        // Add bank interest from prior year
+        actuals.fees.bankInterest = priorYearData.bankInterest || 0;
         
         // Sum up expenses by category - iterate through ALL categories in prior year expenses
         // EXCEPT those marked as Repairs & Maintenance (they'll be summed separately)
@@ -2755,7 +2754,7 @@ const SimpleCloudStorage = {
       
       // Calculate totals - ONLY from categories that are actually displayed
       const calculateTotals = (fees, expenses, categoriesToInclude) => {
-        const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0) + (fees.bankInterest || 0) + (fees.bankInterestActual || 0);
+        const feeTotal = (fees.unit700 || 0) + (fees.unit702 || 0) + (fees.unit704 || 0) + (fees.unit706 || 0) + (fees.bankInterest || 0);
         // Only sum expenses from categories that are visible in the table
         const expenseTotal = categoriesToInclude.reduce((sum, category) => {
           return sum + (parseFloat(expenses[category]) || 0);
@@ -2906,15 +2905,8 @@ const SimpleCloudStorage = {
                     <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
                       {formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0)}
                     </td>
-                    <td style={{ background: 'white' }}>
-                      <input
-                        type="number"
-                        className="input-field"
-                        value={currentProposed.fees?.bankInterestActual || ''}
-                        onChange={(e) => updateBudgetValue('currentYearProposed', 'fees', 'bankInterestActual', e.target.value)}
-                        placeholder="0.00"
-                        style={{ textAlign: 'right' }}
-                      />
+                    <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
+                      {formatCurrency(data.bankInterest || 0)}
                     </td>
                     <td style={{ background: 'white' }}>
                       <input
