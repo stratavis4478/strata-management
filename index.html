@@ -1615,6 +1615,9 @@ const SimpleCloudStorage = {
         doc.text(`Total Strata Fees:`, 25, yPos);
         doc.text(formatCurrency(totals.income), 170, yPos, { align: 'right' });
         yPos += 7;
+        doc.text(`Bank Interest (CRF):`, 25, yPos);
+        doc.text(formatCurrency(data.bankInterest || 0), 170, yPos, { align: 'right' });
+        yPos += 7;
         doc.text(`Total Expenses:`, 25, yPos);
         doc.text(formatCurrency(totals.expenses), 170, yPos, { align: 'right' });
         yPos += 7;
@@ -1632,8 +1635,14 @@ const SimpleCloudStorage = {
         doc.text(`CRF Opening Balance:`, 25, yPos);
         doc.text(formatCurrency(data.crfBaseline || 0), 170, yPos, { align: 'right' });
         yPos += 7;
+        doc.text(`Bank Interest:`, 25, yPos);
+        doc.text(formatCurrency(data.bankInterest || 0), 170, yPos, { align: 'right' });
+        yPos += 7;
+        doc.text(`This Year Surplus:`, 25, yPos);
+        doc.text(formatCurrency(totals.surplus), 170, yPos, { align: 'right' });
+        yPos += 7;
         doc.text(`CRF Projected Closing:`, 25, yPos);
-        doc.text(formatCurrency((data.crfBaseline || 0) + totals.surplus), 170, yPos, { align: 'right' });
+        doc.text(formatCurrency((data.crfBaseline || 0) + (data.bankInterest || 0) + totals.surplus), 170, yPos, { align: 'right' });
         yPos += 20;
 
         // NEW PAGE - Strata Fees Table
@@ -1892,12 +1901,14 @@ const SimpleCloudStorage = {
           ['Strata Plan VIS4478'],
           [],
           ['Total Strata Fees', totals.income],
+          ['Bank Interest (CRF)', data.bankInterest || 0],
           ['Total Expenses', totals.expenses],
           ['Net Surplus/(Deficit)', totals.surplus],
           [],
           ['CRF Opening Balance', data.crfBaseline || 0],
+          ['Bank Interest', data.bankInterest || 0],
           ['This Year Surplus', totals.surplus],
-          ['CRF Projected Closing', (data.crfBaseline || 0) + totals.surplus]
+          ['CRF Projected Closing', (data.crfBaseline || 0) + (data.bankInterest || 0) + totals.surplus]
         ];
         const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
         ws1['!cols'] = [{ wch: 40 }, { wch: 15 }];
@@ -2365,6 +2376,12 @@ const SimpleCloudStorage = {
               <div className="stat-value">{formatCurrency(totals.income)}</div>
               <div className="stat-change positive">↑ Fees collected</div>
             </div>
+            
+            <div className="stat-card">
+              <div className="stat-label">Bank Interest (CRF)</div>
+              <div className="stat-value">{formatCurrency(data.bankInterest || 0)}</div>
+              <div className="stat-change positive">↑ Interest earned</div>
+            </div>
 
             <div className="stat-card accent">
               <div className="stat-label">Total Expenses</div>
@@ -2411,6 +2428,25 @@ const SimpleCloudStorage = {
                     Enter the total CRF balance at the start of this year
                   </small>
                 </div>
+                
+                <div className="form-group">
+                  <label>🏦 Bank Interest Earned (CRF)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input-field"
+                    value={data.bankInterest || ''}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setData(prev => ({ ...prev, bankInterest: value }));
+                    }}
+                    placeholder="0.00"
+                    style={{ fontSize: '1.1rem', fontWeight: '600' }}
+                  />
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '5px' }}>
+                    Enter total interest earned on CRF this year
+                  </small>
+                </div>
               </div>
               
               <div style={{ marginTop: '20px', padding: '20px', background: '#F0F9FF', borderRadius: '12px', border: '2px solid #BFDBFE' }}>
@@ -2421,6 +2457,12 @@ const SimpleCloudStorage = {
                     <div style={{ fontSize: '1.5rem', fontWeight: '700' }}>{formatCurrency(data.crfBaseline || 0)}</div>
                   </div>
                   <div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Bank Interest</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--success)' }}>
+                      {formatCurrency(data.bankInterest || 0)}
+                    </div>
+                  </div>
+                  <div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>This Year's Surplus</div>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: totals.surplus >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {formatCurrency(totals.surplus)}
@@ -2429,7 +2471,7 @@ const SimpleCloudStorage = {
                   <div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Projected Closing Balance</div>
                     <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--primary)' }}>
-                      {formatCurrency((data.crfBaseline || 0) + totals.surplus)}
+                      {formatCurrency((data.crfBaseline || 0) + (data.bankInterest || 0) + totals.surplus)}
                     </div>
                   </div>
                 </div>
