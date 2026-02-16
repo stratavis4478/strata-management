@@ -1615,6 +1615,9 @@ const SimpleCloudStorage = {
         doc.text(`Total Strata Fees:`, 25, yPos);
         doc.text(formatCurrency(totals.income), 170, yPos, { align: 'right' });
         yPos += 7;
+        doc.text(`Bank Interest (CRF):`, 25, yPos);
+        doc.text(formatCurrency(data.bankInterest || 0), 170, yPos, { align: 'right' });
+        yPos += 7;
         doc.text(`Total Expenses:`, 25, yPos);
         doc.text(formatCurrency(totals.expenses), 170, yPos, { align: 'right' });
         yPos += 7;
@@ -1627,16 +1630,10 @@ const SimpleCloudStorage = {
         doc.text(`Net Surplus/(Deficit):`, 25, yPos);
         doc.text(formatCurrency(totals.surplus), 170, yPos, { align: 'right' });
         doc.setTextColor(0, 0, 0);
-        yPos += 7;
+        yPos += 10;
         doc.setFont(undefined, 'normal');
         doc.text(`CRF Opening Balance:`, 25, yPos);
         doc.text(formatCurrency(data.crfBaseline || 0), 170, yPos, { align: 'right' });
-        yPos += 7;
-        doc.text(`Bank Interest:`, 25, yPos);
-        doc.text(formatCurrency(data.bankInterest || 0), 170, yPos, { align: 'right' });
-        yPos += 7;
-        doc.text(`This Year Surplus:`, 25, yPos);
-        doc.text(formatCurrency(totals.surplus), 170, yPos, { align: 'right' });
         yPos += 7;
         doc.text(`CRF Projected Closing:`, 25, yPos);
         doc.text(formatCurrency((data.crfBaseline || 0) + (data.bankInterest || 0) + totals.surplus), 170, yPos, { align: 'right' });
@@ -1835,7 +1832,7 @@ const SimpleCloudStorage = {
           // Bank Interest
           doc.text('Bank Interest (CRF)', 25, yPos);
           doc.text(formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0), 85, yPos, { align: 'right' });
-          doc.text(formatCurrency(data.bankInterest || 0), 115, yPos, { align: 'right' });
+          doc.text(formatCurrency(priorYearActuals.fees?.bankInterest || 0), 115, yPos, { align: 'right' });
           doc.text(formatCurrency(data.budget.currentYearProposed.fees?.bankInterest || 0), 180, yPos, { align: 'right' });
           yPos += 5;
           
@@ -2906,7 +2903,7 @@ const SimpleCloudStorage = {
                       {formatCurrency(priorYearProposedBudget.fees?.bankInterest || 0)}
                     </td>
                     <td style={{ background: 'white', textAlign: 'right', fontWeight: '600', fontFamily: 'Space Mono, monospace', color: '#1F2937' }}>
-                      {formatCurrency(data.bankInterest || 0)}
+                      {formatCurrency(priorYearActuals.fees?.bankInterest || 0)}
                     </td>
                     <td style={{ background: 'white' }}>
                       <input
